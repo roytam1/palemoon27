@@ -1128,6 +1128,9 @@ public:
   void
   ReportError(JSContext* aCx, const char* aMessage, JSErrorReport* aReport);
 
+  static void
+  ReportErrorToConsole(const char* aMessage);
+
   int32_t
   SetTimeout(JSContext* aCx,
              Function* aHandler,
@@ -1524,6 +1527,9 @@ protected:
 
   NS_IMETHOD
   Dispatch(already_AddRefed<nsIRunnable>&& aRunnable, uint32_t aFlags) override;
+
+  NS_IMETHOD
+  DelayedDispatch(already_AddRefed<nsIRunnable>&&, uint32_t) override;
 
   NS_IMETHOD
   IsOnCurrentThread(bool* aIsOnCurrentThread) override;

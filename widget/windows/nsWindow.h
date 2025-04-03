@@ -25,7 +25,6 @@
 #include "nsITimer.h"
 #include "nsRegion.h"
 #include "mozilla/EventForwards.h"
-#include "mozilla/gfx/CriticalSection.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TimeStamp.h"
 #include "nsMargin.h"
@@ -59,6 +58,7 @@ namespace mozilla {
 namespace widget {
 class NativeKey;
 struct MSGResult;
+class WinCompositorWidgetProxy;
 } // namespace widget
 } // namespacw mozilla;
 
@@ -206,8 +206,6 @@ public:
   NS_IMETHOD              GetNonClientMargins(LayoutDeviceIntMargin& aMargins) override;
   NS_IMETHOD              SetNonClientMargins(LayoutDeviceIntMargin& aMargins) override;
   void                    SetDrawsInTitlebar(bool aState) override;
-  already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawing() override;
-  virtual void            EndRemoteDrawing() override;
   virtual void            UpdateWindowDraggingRegion(const LayoutDeviceIntRegion& aRegion) override;
 
   virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) override;
@@ -309,6 +307,8 @@ public:
   virtual nsresult OnWindowedPluginKeyEvent(
                      const mozilla::NativeEventData& aKeyEventData,
                      nsIKeyEventInPluginCallback* aCallback) override;
+
+  mozilla::widget::CompositorWidgetProxy* NewCompositorWidgetProxy() override;
 
 protected:
   virtual ~nsWindow();
@@ -454,10 +454,6 @@ protected:
 private:
   void                    SetWindowTranslucencyInner(nsTransparencyMode aMode);
   nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
-  void                    ResizeTranslucentWindow(int32_t aNewWidth, int32_t aNewHeight, bool force = false);
-  nsresult                UpdateTranslucentWindow();
-  void                    ClearTranslucentWindow();
-  void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
   void                    UpdateGlass();
 protected:
 #endif // MOZ_XUL
@@ -477,9 +473,8 @@ protected:
   static void             ActivateOtherWindowHelper(HWND aWnd);
   void                    ClearCachedResources();
   nsIWidgetListener*      GetPaintListener();
-  static bool             IsRenderMode(gfxWindowsPlatform::RenderMode aMode);
-  virtual bool            PreRender(LayerManagerComposite*) override;
-  virtual void            PostRender(LayerManagerComposite*) override;
+
+  mozilla::widget::WinCompositorWidgetProxy* GetCompositorWidgetProxy();
 
 protected:
   nsCOMPtr<nsIWidget>   mParent;
@@ -575,15 +570,11 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
-  HDC                   mCompositeDC; // only set during StartRemoteDrawing
 
   LayoutDeviceIntRect   mLastPaintBounds;
 
   // Transparency
 #ifdef MOZ_XUL
-  // Use layered windows to support full 256 level alpha translucency
-  RefPtr<gfxASurface> mTransparentSurface;
-  HDC                   mMemoryDC;
   nsTransparencyMode    mTransparencyMode;
   nsIntRegion           mPossiblyTransparentRegion;
   MARGINS               mGlassMargins;
@@ -616,8 +607,6 @@ protected:
 
   static bool sNeedsToInitMouseWheelSettings;
   static void InitMouseWheelScrollData();
-
-  mozilla::gfx::CriticalSection mPresentLock;
 
   double mSizeConstraintsScale; // scale in effect when setting constraints
 };

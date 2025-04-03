@@ -126,10 +126,10 @@ IsThingPoisoned(T* thing)
         JS_SWEPT_NURSERY_PATTERN,
         JS_ALLOCATED_NURSERY_PATTERN,
         JS_FRESH_TENURED_PATTERN,
+        JS_MOVED_TENURED_PATTERN,
         JS_SWEPT_TENURED_PATTERN,
         JS_ALLOCATED_TENURED_PATTERN,
-        JS_SWEPT_CODE_PATTERN,
-        JS_SWEPT_FRAME_PATTERN
+        JS_SWEPT_CODE_PATTERN
     };
     const int numPoisonBytes = sizeof(poisonBytes) / sizeof(poisonBytes[0]);
     uint32_t* p = reinterpret_cast<uint32_t*>(reinterpret_cast<FreeSpan*>(thing) + 1);
@@ -191,6 +191,9 @@ js::CheckTracedThing(JSTracer* trc, T* thing)
 #ifdef DEBUG
     MOZ_ASSERT(trc);
     MOZ_ASSERT(thing);
+
+    if (!trc->checkEdges())
+        return;
 
     thing = MaybeForwarded(thing);
 
@@ -358,6 +361,9 @@ AssertRootMarkingPhase(JSTracer* trc)
 // statically select the correct Cell layout for marking. Below, we instantiate
 // each override with a declaration of the most derived layout type.
 //
+// The use of TraceKind::Null for the case where the type is not matched
+// generates a compile error as no template instantiated for that kind.
+//
 // Usage:
 //   BaseGCType<T>::type
 //
@@ -365,16 +371,13 @@ AssertRootMarkingPhase(JSTracer* trc)
 //   BaseGCType<JSFunction>::type => JSObject
 //   BaseGCType<UnownedBaseShape>::type => BaseShape
 //   etc.
-template <typename T,
-          JS::TraceKind = IsBaseOf<JSObject, T>::value     ? JS::TraceKind::Object
-                        : IsBaseOf<JSString, T>::value     ? JS::TraceKind::String
-                        : IsBaseOf<JS::Symbol, T>::value   ? JS::TraceKind::Symbol
-                        : IsBaseOf<JSScript, T>::value     ? JS::TraceKind::Script
-                        : IsBaseOf<Shape, T>::value        ? JS::TraceKind::Shape
-                        : IsBaseOf<BaseShape, T>::value    ? JS::TraceKind::BaseShape
-                        : IsBaseOf<jit::JitCode, T>::value ? JS::TraceKind::JitCode
-                        : IsBaseOf<LazyScript, T>::value   ? JS::TraceKind::LazyScript
-                        :                                    JS::TraceKind::ObjectGroup>
+template <typename T, JS::TraceKind =
+#define EXPAND_MATCH_TYPE(name, type, _) \
+          IsBaseOf<type, T>::value ? JS::TraceKind::name :
+JS_FOR_EACH_TRACEKIND(EXPAND_MATCH_TYPE)
+#undef EXPAND_MATCH_TYPE
+          JS::TraceKind::Null>
+
 struct BaseGCType;
 #define IMPL_BASE_GC_TYPE(name, type_, _) \
     template <typename T> struct BaseGCType<T, JS::TraceKind:: name> { typedef type_ type; };
@@ -2032,7 +2035,7 @@ template <typename S>
 struct TenuringTraversalFunctor : public IdentityDefaultAdaptor<S> {
     template <typename T> S operator()(T* t, TenuringTracer* trc) {
         trc->traverse(&t);
-        return js::gc::RewrapTaggedPointer<S, T*>::wrap(t);
+        return js::gc::RewrapTaggedPointer<S, T>::wrap(t);
     }
 };
 
@@ -2102,6 +2105,9 @@ js::gc::StoreBuffer::WholeCellEdges::trace(TenuringTracer& mover) const
     JS::TraceKind kind = edge->getTraceKind();
     if (kind == JS::TraceKind::Object) {
         JSObject *object = static_cast<JSObject*>(edge);
+        if (object->is<NativeObject>())
+            object->as<NativeObject>().clearInWholeCellBuffer();
+
         mover.traceObject(object);
 
         // Additionally trace the expando object attached to any unboxed plain
@@ -2435,7 +2441,7 @@ template <typename S>
 struct IsMarkedFunctor : public IdentityDefaultAdaptor<S> {
     template <typename T> S operator()(T* t, bool* rv) {
         *rv = IsMarkedInternal(&t);
-        return js::gc::RewrapTaggedPointer<S, T*>::wrap(t);
+        return js::gc::RewrapTaggedPointer<S, T>::wrap(t);
     }
 };
 
@@ -2494,7 +2500,7 @@ template <typename S>
 struct IsAboutToBeFinalizedFunctor : public IdentityDefaultAdaptor<S> {
     template <typename T> S operator()(T* t, bool* rv) {
         *rv = IsAboutToBeFinalizedInternal(&t);
-        return js::gc::RewrapTaggedPointer<S, T*>::wrap(t);
+        return js::gc::RewrapTaggedPointer<S, T>::wrap(t);
     }
 };
 

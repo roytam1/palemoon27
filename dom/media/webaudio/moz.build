@@ -50,6 +50,7 @@ EXPORTS.mozilla.dom += [
     'DelayNode.h',
     'DynamicsCompressorNode.h',
     'GainNode.h',
+    'IIRFilterNode.h',
     'MediaElementAudioSourceNode.h',
     'MediaStreamAudioDestinationNode.h',
     'MediaStreamAudioSourceNode.h',
@@ -86,6 +87,7 @@ UNIFIED_SOURCES += [
     'DynamicsCompressorNode.cpp',
     'FFTBlock.cpp',
     'GainNode.cpp',
+    'IIRFilterNode.cpp',
     'MediaBufferDecoder.cpp',
     'MediaElementAudioSourceNode.cpp',
     'MediaStreamAudioDestinationNode.cpp',
@@ -107,6 +109,13 @@ if CONFIG['CPU_ARCH'] == 'arm' and CONFIG['BUILD_ARM_NEON']:
     LOCAL_INCLUDES += [
         '/media/openmax_dl/dl/api/'
     ]
+
+# Are we targeting x86 or x64?  If so, build SSE2 files.
+if CONFIG['INTEL_ARCHITECTURE']:
+    SOURCES += ['AudioNodeEngineSSE2.cpp']
+    DEFINES['USE_SSE2'] = True
+    SOURCES['AudioNodeEngineSSE2.cpp'].flags += CONFIG['SSE2_FLAGS']
+
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

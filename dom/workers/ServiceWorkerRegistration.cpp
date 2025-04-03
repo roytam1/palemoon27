@@ -396,7 +396,7 @@ public:
   }
 };
 
-class UpdateRunnable final : public nsRunnable
+class UpdateRunnable final : public Runnable
 {
 public:
   UpdateRunnable(PromiseWorkerProxy* aPromiseProxy,
@@ -564,7 +564,7 @@ NS_IMPL_ISUPPORTS(WorkerUnregisterCallback, nsIServiceWorkerUnregisterCallback);
  * If the worker goes away, we still continue to unregister, but we don't try to
  * resolve the worker Promise (which doesn't exist by that point).
  */
-class StartUnregisterRunnable final : public nsRunnable
+class StartUnregisterRunnable final : public Runnable
 {
   RefPtr<PromiseWorkerProxy> mPromiseWorkerProxy;
   const nsString mScope;
@@ -970,6 +970,14 @@ ServiceWorkerRegistrationWorkerThread::Update(ErrorResult& aRv)
     return nullptr;
   }
 
+  // Avoid infinite update loops by ignoring update() calls during top
+  // level script evaluation.  See:
+  // https://github.com/slightlyoff/ServiceWorker/issues/800
+  if (worker->LoadScriptAsPartOfLoadingServiceWorkerScript()) {
+    promise->MaybeResolve(JS::UndefinedHandleValue);
+    return promise.forget();
+  }
+
   RefPtr<PromiseWorkerProxy> proxy = PromiseWorkerProxy::Create(worker, promise);
   if (!proxy) {
     aRv.Throw(NS_ERROR_DOM_ABORT_ERR);
@@ -1014,7 +1022,7 @@ ServiceWorkerRegistrationWorkerThread::Unregister(ErrorResult& aRv)
   return promise.forget();
 }
 
-class StartListeningRunnable final : public nsRunnable
+class StartListeningRunnable final : public Runnable
 {
   RefPtr<WorkerListener> mListener;
 public:
@@ -1050,7 +1058,7 @@ ServiceWorkerRegistrationWorkerThread::InitListener()
   MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(r));
 }
 
-class AsyncStopListeningRunnable final : public nsRunnable
+class AsyncStopListeningRunnable final : public Runnable
 {
   RefPtr<WorkerListener> mListener;
 public:
@@ -1072,7 +1080,8 @@ class SyncStopListeningRunnable final : public WorkerMainThreadRunnable
 public:
   SyncStopListeningRunnable(WorkerPrivate* aWorkerPrivate,
                             WorkerListener* aListener)
-    : WorkerMainThreadRunnable(aWorkerPrivate)
+    : WorkerMainThreadRunnable(aWorkerPrivate,
+                               NS_LITERAL_CSTRING("ServiceWorkerRegistration :: StopListening"))
     , mListener(aListener)
   {}
 

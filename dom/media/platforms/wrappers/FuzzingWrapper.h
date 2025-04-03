@@ -60,7 +60,7 @@ private:
 
   // MediaDataDecoderCallback implementation.
   void Output(MediaData* aData) override;
-  void Error() override;
+  void Error(MediaDataDecoderError aError) override;
   void InputExhausted() override;
   void DrainComplete() override;
   void ReleaseMediaResources() override;
@@ -81,6 +81,7 @@ private:
   typedef Pair<RefPtr<MediaData>, bool> MediaDataAndInputExhausted;
   std::deque<MediaDataAndInputExhausted> mDelayedOutput;
   RefPtr<MediaTimer> mDelayedOutputTimer;
+  MozPromiseRequestHolder<MediaTimerPromise> mDelayedOutputRequest;
   // If draining, a 'DrainComplete' will be sent after all delayed frames have
   // been output.
   bool mDraining;

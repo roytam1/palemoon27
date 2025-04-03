@@ -454,8 +454,6 @@ class BaseShape : public gc::TenuredCell
     void traceChildren(JSTracer* trc);
     void traceChildrenSkipShapeTable(JSTracer* trc);
 
-    void fixupAfterMovingGC() {}
-
   private:
     static void staticAsserts() {
         JS_STATIC_ASSERT(offsetof(BaseShape, clasp_) == offsetof(js::shadow::BaseShape, clasp_));
@@ -525,7 +523,7 @@ struct StackBaseShape : public DefaultHasher<ReadBarriered<UnownedBaseShape*>>
     static inline bool match(ReadBarriered<UnownedBaseShape*> key, const Lookup& lookup);
 };
 
-using BaseShapeSet = js::GCHashSet<ReadBarriered<UnownedBaseShape*>,
+using BaseShapeSet = JS::GCHashSet<ReadBarriered<UnownedBaseShape*>,
                                    StackBaseShape,
                                    SystemAllocPolicy>;
 
@@ -963,6 +961,7 @@ class Shape : public gc::TenuredCell
 
     void fixupAfterMovingGC();
     void fixupGetterSetterForBarrier(JSTracer* trc);
+    void updateBaseShapeAfterMovingGC();
 
     /* For JIT usage */
     static inline size_t offsetOfBase() { return offsetof(Shape, base_); }
@@ -1124,7 +1123,7 @@ struct InitialShapeEntry
     }
 };
 
-using InitialShapeSet = js::GCHashSet<InitialShapeEntry, InitialShapeEntry, SystemAllocPolicy>;
+using InitialShapeSet = JS::GCHashSet<InitialShapeEntry, InitialShapeEntry, SystemAllocPolicy>;
 
 struct StackShape
 {

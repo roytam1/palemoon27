@@ -330,7 +330,7 @@ BackgroundParentImpl::DeallocPCamerasParent(camera::PCamerasParent *aActor)
 
 namespace {
 
-class InitUDPSocketParentCallback final : public nsRunnable
+class InitUDPSocketParentCallback final : public Runnable
 {
 public:
   InitUDPSocketParentCallback(UDPSocketParent* aActor,
@@ -443,7 +443,7 @@ struct MOZ_STACK_CLASS NullifyContentParentRAII
   RefPtr<ContentParent>& mContentParent;
 };
 
-class CheckPrincipalRunnable final : public nsRunnable
+class CheckPrincipalRunnable final : public Runnable
 {
 public:
   CheckPrincipalRunnable(already_AddRefed<ContentParent> aParent,
@@ -496,7 +496,7 @@ private:
   nsCString mOrigin;
 };
 
-class CheckPermissionRunnable final : public nsRunnable
+class CheckPermissionRunnable final : public Runnable
 {
 public:
   CheckPermissionRunnable(already_AddRefed<ContentParent> aParent,

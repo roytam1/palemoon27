@@ -19,6 +19,10 @@ enum AudioContextState {
     "closed"
 };
 
+dictionary PeriodicWaveConstraints {
+  boolean disableNormalization = false;
+};
+
 [Constructor,
  Constructor(AudioChannel audioChannelType)]
 interface AudioContext : EventTarget {
@@ -71,6 +75,8 @@ interface AudioContext : EventTarget {
     [NewObject, Throws]
     BiquadFilterNode createBiquadFilter();
     [NewObject, Throws]
+    IIRFilterNode createIIRFilter(sequence<double> feedforward, sequence<double> feedback);
+    [NewObject, Throws]
     WaveShaperNode createWaveShaper();
     [NewObject, Throws]
     PannerNode createPanner();
@@ -88,7 +94,7 @@ interface AudioContext : EventTarget {
     [NewObject, Throws]
     OscillatorNode createOscillator();
     [NewObject, Throws]
-    PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag);
+    PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag, optional PeriodicWaveConstraints constraints);
 
 };
 

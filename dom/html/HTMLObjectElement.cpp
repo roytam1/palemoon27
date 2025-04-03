@@ -122,7 +122,7 @@ static nsIWidget* GetWidget(Element* aElement)
 
 Element* HTMLObjectElement::sLastFocused = nullptr; // Weak
 
-class PluginFocusSetter : public nsRunnable
+class PluginFocusSetter : public Runnable
 {
 public:
   PluginFocusSetter(nsIWidget* aWidget, Element* aElement)
@@ -280,7 +280,7 @@ HTMLObjectElement::BindToTree(nsIDocument *aDocument,
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren && !pluginDoc) {
     void (HTMLObjectElement::*start)() = &HTMLObjectElement::StartObjectLoad;
-    nsContentUtils::AddScriptRunner(NS_NewRunnableMethod(this, start));
+    nsContentUtils::AddScriptRunner(NewRunnableMethod(this, start));
   }
 
   return NS_OK;

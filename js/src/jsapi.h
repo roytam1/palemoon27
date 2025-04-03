@@ -124,14 +124,14 @@ class MOZ_RAII AutoVectorRooterBase : protected AutoGCRooter
     size_t length() const { return vector.length(); }
     bool empty() const { return vector.empty(); }
 
-    bool append(const T& v) { return vector.append(v); }
-    bool appendN(const T& v, size_t len) { return vector.appendN(v, len); }
-    bool append(const T* ptr, size_t len) { return vector.append(ptr, len); }
-    bool appendAll(const AutoVectorRooterBase<T>& other) {
+    MOZ_MUST_USE bool append(const T& v) { return vector.append(v); }
+    MOZ_MUST_USE bool appendN(const T& v, size_t len) { return vector.appendN(v, len); }
+    MOZ_MUST_USE bool append(const T* ptr, size_t len) { return vector.append(ptr, len); }
+    MOZ_MUST_USE bool appendAll(const AutoVectorRooterBase<T>& other) {
         return vector.appendAll(other.vector);
     }
 
-    bool insert(T* p, const T& val) { return vector.insert(p, val); }
+    MOZ_MUST_USE bool insert(T* p, const T& val) { return vector.insert(p, val); }
 
     /* For use when space has already been reserved. */
     void infallibleAppend(const T& v) { vector.infallibleAppend(v); }
@@ -139,7 +139,7 @@ class MOZ_RAII AutoVectorRooterBase : protected AutoGCRooter
     void popBack() { vector.popBack(); }
     T popCopy() { return vector.popCopy(); }
 
-    bool growBy(size_t inc) {
+    MOZ_MUST_USE bool growBy(size_t inc) {
         size_t oldLength = vector.length();
         if (!vector.growByUninitialized(inc))
             return false;
@@ -147,7 +147,7 @@ class MOZ_RAII AutoVectorRooterBase : protected AutoGCRooter
         return true;
     }
 
-    bool resize(size_t newLength) {
+    MOZ_MUST_USE bool resize(size_t newLength) {
         size_t oldLength = vector.length();
         if (newLength <= oldLength) {
             vector.shrinkBy(oldLength - newLength);
@@ -161,7 +161,7 @@ class MOZ_RAII AutoVectorRooterBase : protected AutoGCRooter
 
     void clear() { vector.clear(); }
 
-    bool reserve(size_t newLength) {
+    MOZ_MUST_USE bool reserve(size_t newLength) {
         return vector.reserve(newLength);
     }
 
@@ -219,9 +219,9 @@ typedef AutoVectorRooter<Value> AutoValueVector;
 typedef AutoVectorRooter<jsid> AutoIdVector;
 typedef AutoVectorRooter<JSObject*> AutoObjectVector;
 
-using ValueVector = js::GCVector<JS::Value>;
-using IdVector = js::GCVector<jsid>;
-using ScriptVector = js::GCVector<JSScript*>;
+using ValueVector = JS::GCVector<JS::Value>;
+using IdVector = JS::GCVector<jsid>;
+using ScriptVector = JS::GCVector<JSScript*>;
 
 template<class Key, class Value>
 class MOZ_RAII AutoHashMapRooter : protected AutoGCRooter
@@ -759,6 +759,16 @@ class MOZ_STACK_CLASS SourceBufferHolder final
             length_ = 0;
             ownsChars_ = false;
         }
+    }
+
+    SourceBufferHolder(SourceBufferHolder&& other)
+      : data_(other.data_),
+        length_(other.length_),
+        ownsChars_(other.ownsChars_)
+    {
+        other.data_ = nullptr;
+        other.length_ = 0;
+        other.ownsChars_ = false;
     }
 
     ~SourceBufferHolder() {
@@ -2219,7 +2229,8 @@ class JS_PUBLIC_API(CompartmentCreationOptions)
         preserveJitCode_(false),
         cloneSingletons_(false),
         experimentalDateTimeFormatFormatToPartsEnabled_(false),
-        sharedMemoryAndAtomics_(false)
+        sharedMemoryAndAtomics_(false),
+        secureContext_(false)
     {
         zone_.spec = JS::FreshZone;
     }
@@ -2302,6 +2313,16 @@ class JS_PUBLIC_API(CompartmentCreationOptions)
     bool getSharedMemoryAndAtomicsEnabled() const;
     CompartmentCreationOptions& setSharedMemoryAndAtomicsEnabled(bool flag);
 
+    // This flag doesn't affect JS engine behavior.  It is used by Gecko to
+    // mark whether content windows and workers are "Secure Context"s. See
+    // https://w3c.github.io/webappsec-secure-contexts/
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=1162772#c34
+    bool secureContext() const { return secureContext_; }
+    CompartmentCreationOptions& setSecureContext(bool flag) {
+        secureContext_ = flag;
+        return *this;
+    }
+
   private:
     JSAddonId* addonId_;
     JSTraceOp traceGlobal_;
@@ -2315,6 +2336,7 @@ class JS_PUBLIC_API(CompartmentCreationOptions)
     bool cloneSingletons_;
     bool experimentalDateTimeFormatFormatToPartsEnabled_;
     bool sharedMemoryAndAtomics_;
+    bool secureContext_;
 };
 
 /**
@@ -2876,6 +2898,17 @@ FromPropertyDescriptor(JSContext* cx,
  */
 extern JS_PUBLIC_API(bool)
 JS_GetPrototype(JSContext* cx, JS::HandleObject obj, JS::MutableHandleObject result);
+
+/**
+ * If |obj| (underneath any functionally-transparent wrapper proxies) has as
+ * its [[GetPrototypeOf]] trap the ordinary [[GetPrototypeOf]] behavior defined
+ * for ordinary objects, set |*isOrdinary = true| and store |obj|'s prototype
+ * in |result|.  Otherwise set |*isOrdinary = false|.  In case of error, both
+ * outparams have unspecified value.
+ */
+extern JS_PUBLIC_API(bool)
+JS_GetPrototypeIfOrdinary(JSContext* cx, JS::HandleObject obj, bool* isOrdinary,
+                          JS::MutableHandleObject result);
 
 /**
  * Change the prototype of obj.
@@ -4119,6 +4152,14 @@ CompileOffThread(JSContext* cx, const ReadOnlyCompileOptions& options,
 extern JS_PUBLIC_API(JSScript*)
 FinishOffThreadScript(JSContext* maybecx, JSRuntime* rt, void* token);
 
+extern JS_PUBLIC_API(bool)
+CompileOffThreadModule(JSContext* cx, const ReadOnlyCompileOptions& options,
+                       const char16_t* chars, size_t length,
+                       OffThreadCompileCallback callback, void* callbackData);
+
+extern JS_PUBLIC_API(JSObject*)
+FinishOffThreadModule(JSContext* maybecx, JSRuntime* rt, void* token);
+
 /**
  * Compile a function with scopeChain plus the global as its scope chain.
  * scopeChain must contain objects in the current compartment of cx.  The actual
@@ -4261,6 +4302,79 @@ Evaluate(JSContext* cx, const ReadOnlyCompileOptions& options,
 extern JS_PUBLIC_API(bool)
 Evaluate(JSContext* cx, const ReadOnlyCompileOptions& options,
          const char* filename, JS::MutableHandleValue rval);
+
+/**
+ * Get the HostResolveImportedModule hook for a global.
+ */
+extern JS_PUBLIC_API(JSFunction*)
+GetModuleResolveHook(JSContext* cx);
+
+/**
+ * Set the HostResolveImportedModule hook for a global to the given function.
+ */
+extern JS_PUBLIC_API(void)
+SetModuleResolveHook(JSContext* cx, JS::HandleFunction func);
+
+/**
+ * Parse the given source buffer as a module in the scope of the current global
+ * of cx and return a source text module record.
+ */
+extern JS_PUBLIC_API(bool)
+CompileModule(JSContext* cx, const ReadOnlyCompileOptions& options,
+              SourceBufferHolder& srcBuf, JS::MutableHandleObject moduleRecord);
+
+/**
+ * Set the [[HostDefined]] field of a source text module record to the given
+ * value.
+ */
+extern JS_PUBLIC_API(void)
+SetModuleHostDefinedField(JSObject* module, JS::Value value);
+
+/**
+ * Get the [[HostDefined]] field of a source text module record.
+ */
+extern JS_PUBLIC_API(JS::Value)
+GetModuleHostDefinedField(JSObject* module);
+
+/*
+ * Perform the ModuleDeclarationInstantiation operation on on the give source
+ * text module record.
+ *
+ * This transitively resolves all module dependencies (calling the
+ * HostResolveImportedModule hook) and initializes the environment record for
+ * the module.
+ */
+extern JS_PUBLIC_API(bool)
+ModuleDeclarationInstantiation(JSContext* cx, JS::HandleObject moduleRecord);
+
+/*
+ * Perform the ModuleEvaluation operation on on the give source text module
+ * record.
+ *
+ * This does nothing if this module has already been evaluated. Otherwise, it
+ * transitively evaluates all dependences of this module and then evaluates this
+ * module.
+ *
+ * ModuleDeclarationInstantiation must have completed prior to calling this.
+ */
+extern JS_PUBLIC_API(bool)
+ModuleEvaluation(JSContext* cx, JS::HandleObject moduleRecord);
+
+/*
+ * Get a list of the module specifiers used by a source text module
+ * record to request importation of modules.
+ *
+ * The result is a JavaScript array of string values.  ForOfIterator can be used
+ * to extract the individual strings.
+ */
+extern JS_PUBLIC_API(JSObject*)
+GetRequestedModules(JSContext* cx, JS::HandleObject moduleRecord);
+
+/*
+ * Get the script associated with a module.
+ */
+extern JS_PUBLIC_API(JSScript*)
+GetModuleScript(JSContext* cx, JS::HandleObject moduleRecord);
 
 } /* namespace JS */
 
@@ -4881,9 +4995,9 @@ GetSymbolDescription(HandleSymbol symbol);
     macro(replace) \
     macro(search) \
     macro(species) \
+    macro(hasInstance) \
     macro(split) \
     macro(toPrimitive) \
-    macro(hasInstance) \
     macro(unscopables)
 
 enum class SymbolCode : uint32_t {

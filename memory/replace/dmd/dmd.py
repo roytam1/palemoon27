@@ -722,7 +722,7 @@ def prettyPrintDmdJson(out, j):
     first = True
     for k, v in j['frameTable'].iteritems():
         out.write('' if first else ',')
-        out.write('\n  "{0}": "{1}"'.format(k, v))
+        out.write('\n  "{0}": {1}'.format(k, json.dumps(v)))
         first = False
     out.write('\n }\n')
 

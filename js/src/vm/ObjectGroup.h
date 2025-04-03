@@ -99,6 +99,10 @@ class ObjectGroup : public gc::TenuredCell
         clasp_ = clasp;
     }
 
+    bool hasDynamicPrototype() const {
+        return proto_.isDynamic();
+    }
+
     const HeapPtr<TaggedProto>& proto() const {
         return proto_;
     }
@@ -420,7 +424,6 @@ class ObjectGroup : public gc::TenuredCell
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
 
     void finalize(FreeOp* fop);
-    void fixupAfterMovingGC() {}
 
     static const JS::TraceKind TraceKind = JS::TraceKind::ObjectGroup;
 
@@ -557,7 +560,7 @@ class ObjectGroupCompartment
     struct PlainObjectTableSweepPolicy {
         static bool needsSweep(PlainObjectKey* key, PlainObjectEntry* entry);
     };
-    using PlainObjectTable = js::GCHashMap<PlainObjectKey,
+    using PlainObjectTable = JS::GCHashMap<PlainObjectKey,
                                            PlainObjectEntry,
                                            PlainObjectKey,
                                            SystemAllocPolicy,
@@ -576,7 +579,7 @@ class ObjectGroupCompartment
     PlainObjectTable* plainObjectTable;
 
     struct AllocationSiteKey;
-    using AllocationSiteTable = js::GCHashMap<AllocationSiteKey,
+    using AllocationSiteTable = JS::GCHashMap<AllocationSiteKey,
                                               ReadBarrieredObjectGroup,
                                               AllocationSiteKey,
                                               SystemAllocPolicy>;

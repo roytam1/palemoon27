@@ -17,7 +17,7 @@
 #include "nsWeakReference.h"
 #include "mozilla/SHA1.h"
 #include "mozilla/StaticMutex.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/TimeStamp.h"
 
 class nsIFile;
@@ -1029,7 +1029,7 @@ private:
   // any intermediate cache size.
   bool mAsyncGetDiskConsumptionBlocked;
 
-  class DiskConsumptionObserver : public nsRunnable
+  class DiskConsumptionObserver : public Runnable
   {
   public:
     static DiskConsumptionObserver* Init(nsICacheStorageConsumptionObserver* aObserver)

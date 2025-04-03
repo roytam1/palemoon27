@@ -413,7 +413,7 @@ nsNSSSocketInfo::IsAcceptableForHost(const nsACString& hostname, bool* _retval)
   }
   nsAutoCString hostnameFlat(PromiseFlatCString(hostname));
   CertVerifier::Flags flags = CertVerifier::FLAG_LOCAL_ONLY;
-  ScopedCERTCertList unusedBuiltChain;
+  UniqueCERTCertList unusedBuiltChain;
   SECStatus rv = certVerifier->VerifySSLServerCert(nssCert, nullptr,
                                                    mozilla::pkix::Now(),
                                                    nullptr, hostnameFlat.get(),
@@ -505,7 +505,7 @@ nsNSSSocketInfo::SetNPNList(nsTArray<nsCString>& protocolArray)
 
   if (SSL_SetNextProtoNego(
         mFd,
-        reinterpret_cast<const unsigned char*>(npnList.get()),
+        BitwiseCast<const unsigned char*, const char*>(npnList.get()),
         npnList.Length()) != SECSuccess)
     return NS_ERROR_FAILURE;
 
@@ -1262,19 +1262,19 @@ nsSSLIOLayerPoll(PRFileDesc* fd, int16_t in_flags, int16_t* out_flags)
     return in_flags;
   }
 
-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug,
-         (socketInfo->IsWaitingForCertVerification()
-            ?  "[%p] polling SSL socket during certificate verification using lower %d\n"
-            :  "[%p] poll SSL socket using lower %d\n",
-         fd, (int) in_flags));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Verbose,
+          (socketInfo->IsWaitingForCertVerification()
+             ?  "[%p] polling SSL socket during certificate verification using lower %d\n"
+             :  "[%p] poll SSL socket using lower %d\n",
+           fd, (int) in_flags));
 
   // We want the handshake to continue during certificate validation, so we
   // don't need to do anything special here. libssl automatically blocks when
   // it reaches any point that would be unsafe to send/receive something before
   // cert validation is complete.
   int16_t result = fd->lower->methods->poll(fd->lower, in_flags, out_flags);
-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("[%p] poll SSL socket returned %d\n",
-                                    (void*) fd, (int) result));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Verbose,
+          ("[%p] poll SSL socket returned %d\n", (void*) fd, (int) result));
   return result;
 }
 
@@ -1377,8 +1377,8 @@ PSMRecv(PRFileDesc* fd, void* buf, int32_t amount, int flags,
   int32_t bytesRead = fd->lower->methods->recv(fd->lower, buf, amount, flags,
                                                timeout);
 
-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("[%p] read %d bytes\n", (void*) fd,
-         bytesRead));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Verbose,
+          ("[%p] read %d bytes\n", (void*) fd, bytesRead));
 
 #ifdef DEBUG_SSL_VERBOSE
   DEBUG_DUMP_BUFFER((unsigned char*) buf, bytesRead);
@@ -1408,8 +1408,8 @@ PSMSend(PRFileDesc* fd, const void* buf, int32_t amount, int flags,
   int32_t bytesWritten = fd->lower->methods->send(fd->lower, buf, amount,
                                                   flags, timeout);
 
-  MOZ_LOG(gPIPNSSLog, LogLevel::Debug, ("[%p] wrote %d bytes\n",
-         fd, bytesWritten));
+  MOZ_LOG(gPIPNSSLog, LogLevel::Verbose,
+          ("[%p] wrote %d bytes\n", fd, bytesWritten));
 
   return checkHandshake(bytesWritten, false, fd, socketInfo);
 }
@@ -1702,7 +1702,7 @@ nsSSLIOLayerHelpers::addInsecureFallbackSite(const nsCString& hostname,
   Preferences::SetCString("security.tls.insecure_fallback_hosts", value);
 }
 
-class FallbackPrefRemover final : public nsRunnable
+class FallbackPrefRemover final : public Runnable
 {
 public:
   explicit FallbackPrefRemover(const nsACString& aHost)
@@ -1750,7 +1750,7 @@ nsSSLIOLayerHelpers::removeInsecureFallbackSite(const nsACString& hostname,
   if (!isPublic()) {
     return;
   }
-  RefPtr<nsRunnable> runnable = new FallbackPrefRemover(hostname);
+  RefPtr<Runnable> runnable = new FallbackPrefRemover(hostname);
   if (NS_IsMainThread()) {
     runnable->Run();
   } else {
@@ -2005,7 +2005,7 @@ nsNSS_SSLGetClientAuthData(void* arg, PRFileDesc* socket,
   }
 
   RefPtr<nsNSSSocketInfo> info(
-    reinterpret_cast<nsNSSSocketInfo*>(socket->higher->secret));
+    BitwiseCast<nsNSSSocketInfo*, PRFilePrivate*>(socket->higher->secret));
 
   UniqueCERTCertificate serverCert(SSL_PeerCertificate(socket));
   if (!serverCert) {
@@ -2057,7 +2057,7 @@ ClientAuthDataRunnable::RunOnTargetThread()
   char** caNameStrings;
   UniqueCERTCertificate cert;
   UniqueSECKEYPrivateKey privKey;
-  ScopedCERTCertList certList;
+  UniqueCERTCertList certList;
   CERTCertListNode* node;
   UniqueCERTCertNicknames nicknames;
   int keyError = 0; // used for private key retrieval error
@@ -2110,9 +2110,9 @@ ClientAuthDataRunnable::RunOnTargetThread()
     // automatically find the right cert
 
     // find all user certs that are valid and for SSL
-    certList = CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(),
-                                         certUsageSSLClient, false,
-                                         true, wincx);
+    certList.reset(CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(),
+                                             certUsageSSLClient, false, true,
+                                             wincx));
     if (!certList) {
       goto noCert;
     }
@@ -2202,7 +2202,7 @@ ClientAuthDataRunnable::RunOnTargetThread()
             getter_AddRefs(found_cert));
           if (NS_SUCCEEDED(find_rv) && found_cert) {
             nsNSSCertificate* obj_cert =
-              reinterpret_cast<nsNSSCertificate*>(found_cert.get());
+              BitwiseCast<nsNSSCertificate*, nsIX509Cert*>(found_cert.get());
             if (obj_cert) {
               cert.reset(obj_cert->GetCert());
             }
@@ -2217,16 +2217,16 @@ ClientAuthDataRunnable::RunOnTargetThread()
 
     if (!hasRemembered) {
       // user selects a cert to present
-      nsIClientAuthDialogs* dialogs = nullptr;
+      nsCOMPtr<nsIClientAuthDialogs> dialogs;
       int32_t selectedIndex = -1;
       char16_t** certNicknameList = nullptr;
       char16_t** certDetailsList = nullptr;
 
       // find all user certs that are for SSL
       // note that we are allowing expired certs in this list
-      certList = CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(),
-        certUsageSSLClient, false,
-        false, wincx);
+      certList.reset(CERT_FindUserCertsByUsage(CERT_GetDefaultCertDB(),
+                                               certUsageSSLClient, false,
+                                               false, wincx));
       if (!certList) {
         goto noCert;
       }
@@ -2257,7 +2257,7 @@ ClientAuthDataRunnable::RunOnTargetThread()
         goto noCert;
       }
 
-      nicknames.reset(getNSSCertNicknamesFromCertList(certList.get()));
+      nicknames.reset(getNSSCertNicknamesFromCertList(certList));
 
       if (!nicknames) {
         goto loser;
@@ -2331,9 +2331,9 @@ ClientAuthDataRunnable::RunOnTargetThread()
       }
 
       // Throw up the client auth dialog and get back the index of the selected cert
-      nsresult rv = getNSSDialogs((void**)&dialogs,
-        NS_GET_IID(nsIClientAuthDialogs),
-        NS_CLIENTAUTHDIALOGS_CONTRACTID);
+      nsresult rv = getNSSDialogs(getter_AddRefs(dialogs),
+                                  NS_GET_IID(nsIClientAuthDialogs),
+                                  NS_CLIENTAUTHDIALOGS_CONTRACTID);
 
       if (NS_FAILED(rv)) {
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(CertsToUse, certNicknameList);
@@ -2347,7 +2347,6 @@ ClientAuthDataRunnable::RunOnTargetThread()
                                       (const char16_t**)certDetailsList,
                                       CertsToUse, &selectedIndex, &canceled);
 
-      NS_RELEASE(dialogs);
       NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(CertsToUse, certNicknameList);
       NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(CertsToUse, certDetailsList);
 

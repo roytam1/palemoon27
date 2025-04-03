@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/SyncRunnable.h"
 #include "mozilla/TaskQueue.h"
 
 #include <string.h>
@@ -23,16 +24,15 @@ namespace mozilla
 bool FFmpegDataDecoder<LIBAV_VER>::sFFmpegInitDone = false;
 StaticMutex FFmpegDataDecoder<LIBAV_VER>::sMonitor;
 
-FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(FlushableTaskQueue* aTaskQueue,
+FFmpegDataDecoder<LIBAV_VER>::FFmpegDataDecoder(TaskQueue* aTaskQueue,
                                                 MediaDataDecoderCallback* aCallback,
                                                 AVCodecID aCodecID)
-  : mTaskQueue(aTaskQueue)
-  , mCallback(aCallback)
+  : mCallback(aCallback)
   , mCodecContext(nullptr)
   , mFrame(NULL)
   , mExtraData(nullptr)
   , mCodecID(aCodecID)
-  , mMonitor("FFMpegaDataDecoder")
+  , mTaskQueue(aTaskQueue)
   , mIsFlushing(false)
 {
   MOZ_COUNT_CTOR(FFmpegDataDecoder);
@@ -127,11 +127,40 @@ FFmpegDataDecoder<LIBAV_VER>::Shutdown()
 {
   if (mTaskQueue) {
     nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessShutdown);
+      NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessShutdown);
     mTaskQueue->Dispatch(runnable.forget());
   } else {
     ProcessShutdown();
   }
+  return NS_OK;
+}
+
+void
+FFmpegDataDecoder<LIBAV_VER>::ProcessDecode(MediaRawData* aSample)
+{
+  MOZ_ASSERT(mTaskQueue->IsCurrentThreadIn());
+  if (mIsFlushing) {
+    return;
+  }
+  switch (DoDecode(aSample)) {
+    case DecodeResult::DECODE_ERROR:
+      mCallback->Error(MediaDataDecoderError::DECODE_ERROR);
+      break;
+    case DecodeResult::FATAL_ERROR:
+      mCallback->Error(MediaDataDecoderError::FATAL_ERROR);
+      break;
+    default:
+      if (mTaskQueue->IsEmpty()) {
+        mCallback->InputExhausted();
+      }
+  }
+}
+
+nsresult
+FFmpegDataDecoder<LIBAV_VER>::Input(MediaRawData* aSample)
+{
+  mTaskQueue->Dispatch(NewRunnableMethod<RefPtr<MediaRawData>>(
+    this, &FFmpegDataDecoder::ProcessDecode, aSample));
   return NS_OK;
 }
 
@@ -140,14 +169,10 @@ FFmpegDataDecoder<LIBAV_VER>::Flush()
 {
   MOZ_ASSERT(mCallback->OnReaderTaskQueue());
   mIsFlushing = true;
-  mTaskQueue->Flush();
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessFlush);
-  MonitorAutoLock mon(mMonitor);
-  mTaskQueue->Dispatch(runnable.forget());
-  while (mIsFlushing) {
-    mon.Wait();
-  }
+    NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessFlush);
+  SyncRunnable::DispatchToThread(mTaskQueue, runnable);
+  mIsFlushing = false;
   return NS_OK;
 }
 
@@ -156,7 +181,7 @@ FFmpegDataDecoder<LIBAV_VER>::Drain()
 {
   MOZ_ASSERT(mCallback->OnReaderTaskQueue());
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessDrain);
+    NewRunnableMethod(this, &FFmpegDataDecoder<LIBAV_VER>::ProcessDrain);
   mTaskQueue->Dispatch(runnable.forget());
   return NS_OK;
 }
@@ -172,9 +197,6 @@ FFmpegDataDecoder<LIBAV_VER>::ProcessFlush()
     avcodec_flush_buffers(mCodecContext);
 #endif
   }
-  MonitorAutoLock mon(mMonitor);
-  mIsFlushing = false;
-  mon.NotifyAll();
 }
 
 void

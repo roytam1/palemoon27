@@ -210,6 +210,7 @@ nsHttpHandler::nsHttpHandler()
     , mTCPKeepaliveLongLivedEnabled(false)
     , mTCPKeepaliveLongLivedIdleTimeS(600)
     , mEnforceH1Framing(FRAMECHECK_BARELY)
+    , mKeepEmptyResponseHeadersAsEmtpyString(false)
 {
     LOG(("Creating nsHttpHandler [this=%p].\n", this));
 
@@ -327,8 +328,8 @@ nsHttpHandler::Init()
     rv = InitConnectionMgr();
     if (NS_FAILED(rv)) return rv;
 
-    mSchedulingContextService =
-        do_GetService("@mozilla.org/network/scheduling-context-service;1");
+    mRequestContextService =
+        do_GetService("@mozilla.org/network/request-context-service;1");
 
 #if defined(ANDROID) || defined(MOZ_MULET)
     mProductSub.AssignLiteral(MOZILLA_UAVERSION);
@@ -434,13 +435,13 @@ nsHttpHandler::InitConnectionMgr()
 }
 
 nsresult
-nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecure)
+nsHttpHandler::AddStandardRequestHeaders(nsHttpRequestHead *request, bool isSecure)
 {
     nsresult rv;
 
     // Add the "User-Agent" header
     rv = request->SetHeader(nsHttp::User_Agent, UserAgent(),
-                            false, nsHttpHeaderArray::eVarietyDefault);
+                            false, nsHttpHeaderArray::eVarietyRequestDefault);
     if (NS_FAILED(rv)) return rv;
 
     // MIME based content negotiation lives!
@@ -448,7 +449,7 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecu
     // service worker expects to see it.  The other "default" headers are
     // hidden from service worker interception.
     rv = request->SetHeader(nsHttp::Accept, mAccept,
-                            false, nsHttpHeaderArray::eVarietyOverride);
+                            false, nsHttpHeaderArray::eVarietyRequestOverride);
     if (NS_FAILED(rv)) return rv;
 
     // Add the "Accept-Language" header.  This header is also exposed to the
@@ -456,38 +457,43 @@ nsHttpHandler::AddStandardRequestHeaders(nsHttpHeaderArray *request, bool isSecu
     if (!mAcceptLanguages.IsEmpty()) {
         // Add the "Accept-Language" header
         rv = request->SetHeader(nsHttp::Accept_Language, mAcceptLanguages,
-                                false, nsHttpHeaderArray::eVarietyOverride);
+                                false,
+                                nsHttpHeaderArray::eVarietyRequestOverride);
         if (NS_FAILED(rv)) return rv;
     }
 
     // Add the "Accept-Encoding" header
     if (isSecure) {
         rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpsAcceptEncodings,
-                                false, nsHttpHeaderArray::eVarietyDefault);
+                                false,
+                                nsHttpHeaderArray::eVarietyRequestDefault);
     } else {
         rv = request->SetHeader(nsHttp::Accept_Encoding, mHttpAcceptEncodings,
-                                false, nsHttpHeaderArray::eVarietyDefault);
+                                false,
+                                nsHttpHeaderArray::eVarietyRequestDefault);
     }
     if (NS_FAILED(rv)) return rv;
 
     // Add the "Do-Not-Track" header
     if (mDoNotTrackEnabled) {
       rv = request->SetHeader(nsHttp::DoNotTrack, NS_LITERAL_CSTRING("1"),
-                              false, nsHttpHeaderArray::eVarietyDefault);
+                              false,
+                              nsHttpHeaderArray::eVarietyRequestDefault);
       if (NS_FAILED(rv)) return rv;
     }
 
     // add the "Send Hint" header
     if (mSafeHintEnabled || mParentalControlEnabled) {
       rv = request->SetHeader(nsHttp::Prefer, NS_LITERAL_CSTRING("safe"),
-                              false, nsHttpHeaderArray::eVarietyDefault);
+                              false,
+                              nsHttpHeaderArray::eVarietyRequestDefault);
       if (NS_FAILED(rv)) return rv;
     }
     return NS_OK;
 }
 
 nsresult
-nsHttpHandler::AddConnectionHeader(nsHttpHeaderArray *request,
+nsHttpHandler::AddConnectionHeader(nsHttpRequestHead *request,
                                    uint32_t caps)
 {
     // RFC2616 section 19.6.2 states that the "Connection: keep-alive"
@@ -1644,6 +1650,14 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
         }
     }
 
+    if (PREF_CHANGED(HTTP_PREF("keep_empty_response_headers_as_empty_string"))) {
+        rv = prefs->GetBoolPref(HTTP_PREF("keep_empty_response_headers_as_empty_string"),
+                                &cVar);
+        if (NS_SUCCEEDED(rv)) {
+            mKeepEmptyResponseHeadersAsEmtpyString = cVar;
+        }
+    }
+
     // Enable HTTP response timeout if TCP Keepalives are disabled.
     mResponseTimeoutEnabled = !mTCPKeepaliveShortLivedEnabled &&
                               !mTCPKeepaliveLongLivedEnabled;
@@ -2108,8 +2122,8 @@ nsHttpHandler::Observe(nsISupports *subject,
         if (mConnMgr) {
             if (gSocketTransportService) {
                 nsCOMPtr<nsIRunnable> event =
-                    NS_NewRunnableMethod(mConnMgr,
-                                         &nsHttpConnectionMgr::ClearConnectionHistory);
+                    NewRunnableMethod(mConnMgr,
+                                      &nsHttpConnectionMgr::ClearConnectionHistory);
                 gSocketTransportService->Dispatch(event, NS_DISPATCH_NORMAL);
             }
             mConnMgr->ClearAltServiceMappings();

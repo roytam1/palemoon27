@@ -641,27 +641,27 @@ nsHttpChannel::ContinueHandleAsyncFallback(nsresult rv)
 }
 
 void
-nsHttpChannel::SetupTransactionSchedulingContext()
+nsHttpChannel::SetupTransactionRequestContext()
 {
-    if (!EnsureSchedulingContextID()) {
+    if (!EnsureRequestContextID()) {
         return;
     }
 
-    nsISchedulingContextService *scsvc =
-        gHttpHandler->GetSchedulingContextService();
-    if (!scsvc) {
+    nsIRequestContextService *rcsvc =
+        gHttpHandler->GetRequestContextService();
+    if (!rcsvc) {
         return;
     }
 
-    nsCOMPtr<nsISchedulingContext> sc;
-    nsresult rv = scsvc->GetSchedulingContext(mSchedulingContextID,
-                                              getter_AddRefs(sc));
+    nsCOMPtr<nsIRequestContext> rc;
+    nsresult rv = rcsvc->GetRequestContext(mRequestContextID,
+                                           getter_AddRefs(rc));
 
     if (NS_FAILED(rv)) {
         return;
     }
 
-    mTransaction->SetSchedulingContext(sc);
+    mTransaction->SetRequestContext(rc);
 }
 
 static bool
@@ -700,9 +700,11 @@ nsHttpChannel::SetupTransaction()
         //   (4) request method is non-idempotent
         //   (5) request is marked slow (e.g XHR)
         //
+        nsAutoCString method;
+        mRequestHead.Method(method);
         if (!mAllowPipelining ||
            (mLoadFlags & (LOAD_INITIAL_DOCUMENT_URI | INHIBIT_PIPELINE)) ||
-            !SafeForPipelining(mRequestHead.ParsedMethod(), mRequestHead.Method())) {
+            !SafeForPipelining(mRequestHead.ParsedMethod(), method)) {
             LOG(("  pipelining disallowed\n"));
             mCaps &= ~NS_HTTP_ALLOW_PIPELINING;
         }
@@ -877,7 +879,7 @@ nsHttpChannel::SetupTransaction()
     }
 
     mTransaction->SetClassOfService(mClassOfService);
-    SetupTransactionSchedulingContext();
+    SetupTransactionRequestContext();
 
     rv = nsInputStreamPump::Create(getter_AddRefs(mTransactionPump),
                                    responseStream);
@@ -2307,7 +2309,7 @@ nsHttpChannel::ResolveProxy()
 }
 
 bool
-nsHttpChannel::ResponseWouldVary(nsICacheEntry* entry) const
+nsHttpChannel::ResponseWouldVary(nsICacheEntry* entry)
 {
     nsresult rv;
     nsAutoCString buf, metaKey;
@@ -2351,33 +2353,37 @@ nsHttpChannel::ResponseWouldVary(nsICacheEntry* entry) const
 
             // Look for value of "Cookie" in the request headers
             nsHttpAtom atom = nsHttp::ResolveAtom(token);
-            const char *newVal = mRequestHead.PeekHeader(atom);
+            nsAutoCString newVal;
+            bool hasHeader = NS_SUCCEEDED(mRequestHead.GetHeader(atom,
+                                                                 newVal));
             if (!lastVal.IsEmpty()) {
                 // value for this header in cache, but no value in request
-                if (!newVal)
+                if (!hasHeader) {
                     return true; // yes - response would vary
+                }
 
                 // If this is a cookie-header, stored metadata is not
                 // the value itself but the hash. So we also hash the
                 // outgoing value here in order to compare the hashes
                 nsAutoCString hash;
                 if (atom == nsHttp::Cookie) {
-                    rv = Hash(newVal, hash);
+                    rv = Hash(newVal.get(), hash);
                     // If hash failed, be conservative (the cached hash
                     // exists at this point) and claim response would vary
                     if (NS_FAILED(rv))
                         return true;
-                    newVal = hash.get();
+                    newVal = hash;
 
                     LOG(("nsHttpChannel::ResponseWouldVary [this=%p] " \
                             "set-cookie value hashed to %s\n",
-                         this, newVal));
+                         this, newVal.get()));
                 }
 
-                if (strcmp(newVal, lastVal))
+                if (!newVal.Equals(lastVal)) {
                     return true; // yes, response would vary
+                }
 
-            } else if (newVal) { // old value is empty, but newVal is set
+            } else if (hasHeader) { // old value is empty, but newVal is set
                 return true;
             }
 
@@ -2445,10 +2451,11 @@ nsHttpChannel::EnsureAssocReq()
         return NS_OK;
 
     // check the method
-    int32_t methodlen = strlen(mRequestHead.Method().get());
-    if ((methodlen != (endofmethod - method)) ||
+    nsAutoCString methodHead;
+    mRequestHead.Method(methodHead);
+    if ((((int32_t)methodHead.Length()) != (endofmethod - method)) ||
         PL_strncmp(method,
-                   mRequestHead.Method().get(),
+                   methodHead.get(),
                    endofmethod - method)) {
         LOG(("  Assoc-Req failure Method %s", method));
         if (mConnectionInfo)
@@ -2466,7 +2473,7 @@ nsHttpChannel::EnsureAssocReq()
                 mResponseHead->PeekHeader(nsHttp::Assoc_Req),
                 message);
             message += NS_LITERAL_STRING(" expected method ");
-            AppendASCIItoUTF16(mRequestHead.Method().get(), message);
+            AppendASCIItoUTF16(methodHead, message);
             consoleService->LogStringMessage(message.get());
         }
 
@@ -2958,10 +2965,10 @@ nsHttpChannel::ContinueProcessFallback(nsresult rv)
 static bool
 IsSubRangeRequest(nsHttpRequestHead &aRequestHead)
 {
-    if (!aRequestHead.PeekHeader(nsHttp::Range))
-        return false;
     nsAutoCString byteRange;
-    aRequestHead.GetHeader(nsHttp::Range, byteRange);
+    if (NS_FAILED(aRequestHead.GetHeader(nsHttp::Range, byteRange))) {
+        return false;
+    }
     return !byteRange.EqualsLiteral("bytes=0-");
 }
 
@@ -3231,11 +3238,11 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
     // Remember the request is a custom conditional request so that we can
     // process any 304 response correctly.
     mCustomConditionalRequest =
-        mRequestHead.PeekHeader(nsHttp::If_Modified_Since) ||
-        mRequestHead.PeekHeader(nsHttp::If_None_Match) ||
-        mRequestHead.PeekHeader(nsHttp::If_Unmodified_Since) ||
-        mRequestHead.PeekHeader(nsHttp::If_Match) ||
-        mRequestHead.PeekHeader(nsHttp::If_Range);
+        mRequestHead.HasHeader(nsHttp::If_Modified_Since) ||
+        mRequestHead.HasHeader(nsHttp::If_None_Match) ||
+        mRequestHead.HasHeader(nsHttp::If_Unmodified_Since) ||
+        mRequestHead.HasHeader(nsHttp::If_Match) ||
+        mRequestHead.HasHeader(nsHttp::If_Range);
 
     // Be pessimistic: assume the cache entry has no useful data.
     *aResult = ENTRY_WANTED;
@@ -3465,13 +3472,13 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         doValidation = true;
     }
 
-    if (!doValidation && mRequestHead.PeekHeader(nsHttp::If_Match) &&
+    nsAutoCString requestedETag;
+    if (!doValidation &&
+        NS_SUCCEEDED(mRequestHead.GetHeader(nsHttp::If_Match, requestedETag)) &&
         (methodWasGet || methodWasHead)) {
-        const char *requestedETag, *cachedETag;
-        cachedETag = mCachedResponseHead->PeekHeader(nsHttp::ETag);
-        requestedETag = mRequestHead.PeekHeader(nsHttp::If_Match);
+        const char *cachedETag = mCachedResponseHead->PeekHeader(nsHttp::ETag);
         if (cachedETag && (!strncmp(cachedETag, "W/", 2) ||
-            strcmp(requestedETag, cachedETag))) {
+            !requestedETag.Equals(cachedETag))) {
             // User has defined If-Match header, if the cached entry is not
             // matching the provided header value or the cached ETag is weak,
             // force validation.
@@ -3494,7 +3501,7 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, nsIApplicationCache* appC
         entry->GetMetaDataElement("auth", getter_Copies(buf));
         doValidation =
             (fromPreviousSession && !buf.IsEmpty()) ||
-            (buf.IsEmpty() && mRequestHead.PeekHeader(nsHttp::Authorization));
+            (buf.IsEmpty() && mRequestHead.HasHeader(nsHttp::Authorization));
     }
 
     // Bug #561276: We maintain a chain of cache-keys which returns cached
@@ -4402,8 +4409,9 @@ DoAddCacheEntryHeaders(nsHttpChannel *self,
 
     // Store the HTTP request method with the cache entry so we can distinguish
     // for example GET and HEAD responses.
-    rv = entry->SetMetaDataElement("request-method",
-                                   requestHead->Method().get());
+    nsAutoCString method;
+    requestHead->Method(method);
+    rv = entry->SetMetaDataElement("request-method", method.get());
     if (NS_FAILED(rv)) return rv;
 
     // Store the HTTP authorization scheme used if any...
@@ -4434,27 +4442,28 @@ DoAddCacheEntryHeaders(nsHttpChannel *self,
                         "processing %s", self, token));
                 if (*token != '*') {
                     nsHttpAtom atom = nsHttp::ResolveAtom(token);
-                    const char *val = requestHead->PeekHeader(atom);
+                    nsAutoCString val;
                     nsAutoCString hash;
-                    if (val) {
+                    if (NS_SUCCEEDED(requestHead->GetHeader(atom, val))) {
                         // If cookie-header, store a hash of the value
                         if (atom == nsHttp::Cookie) {
                             LOG(("nsHttpChannel::AddCacheEntryHeaders [this=%p] " \
-                                    "cookie-value %s", self, val));
-                            rv = Hash(val, hash);
+                                    "cookie-value %s", self, val.get()));
+                            rv = Hash(val.get(), hash);
                             // If hash failed, store a string not very likely
                             // to be the result of subsequent hashes
-                            if (NS_FAILED(rv))
-                                val = "<hash failed>";
-                            else
-                                val = hash.get();
+                            if (NS_FAILED(rv)) {
+                                val = NS_LITERAL_CSTRING("<hash failed>");
+                            } else {
+                                val = hash;
+                            }
 
-                            LOG(("   hashed to %s\n", val));
+                            LOG(("   hashed to %s\n", val.get()));
                         }
 
                         // build cache meta data key and set meta data element...
                         metaKey = prefix + nsDependentCString(token);
-                        entry->SetMetaDataElement(metaKey.get(), val);
+                        entry->SetMetaDataElement(metaKey.get(), val.get());
                     } else {
                         LOG(("nsHttpChannel::AddCacheEntryHeaders [this=%p] " \
                                 "clearing metadata for %s", self, token));
@@ -4503,13 +4512,14 @@ nsresult
 StoreAuthorizationMetaData(nsICacheEntry *entry, nsHttpRequestHead *requestHead)
 {
     // Not applicable to proxy authorization...
-    const char *val = requestHead->PeekHeader(nsHttp::Authorization);
-    if (!val)
+    nsAutoCString val;
+    if (NS_FAILED(requestHead->GetHeader(nsHttp::Authorization, val))) {
         return NS_OK;
+    }
 
     // eg. [Basic realm="wally world"]
     nsAutoCString buf;
-    GetAuthType(val, buf);
+    GetAuthType(val.get(), buf);
     return entry->SetMetaDataElement("auth", buf.get());
 }
 
@@ -5143,8 +5153,8 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
     }
 
     // Remember the cookie header that was set, if any
-    const char *cookieHeader = mRequestHead.PeekHeader(nsHttp::Cookie);
-    if (cookieHeader) {
+    nsAutoCString cookieHeader;
+    if (NS_SUCCEEDED(mRequestHead.GetHeader(nsHttp::Cookie, cookieHeader))) {
         mUserSetCookieHeader = cookieHeader;
     }
 
@@ -5177,7 +5187,7 @@ nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
 
     // Remember we have Authorization header set here.  We need to check on it
     // just once and early, AsyncOpen is the best place.
-    mCustomAuthHeader = !!mRequestHead.PeekHeader(nsHttp::Authorization);
+    mCustomAuthHeader = mRequestHead.HasHeader(nsHttp::Authorization);
 
     // the only time we would already know the proxy information at this
     // point would be if we were proxying a non-http protocol like ftp
@@ -5311,10 +5321,7 @@ nsHttpChannel::BeginConnect()
     // notify "http-on-modify-request" observers
     CallOnModifyRequestObservers();
 
-    // If mLoadGroup is null, e10s is enabled and this will be handled by HttpChannelChild.
-    if (mLoadGroup) {
-      HttpBaseChannel::SetLoadGroupUserAgentOverride();
-    }
+    SetLoadGroupUserAgentOverride();
 
     // Check to see if we should redirect this channel elsewhere by
     // nsIHttpChannel.redirectTo API request
@@ -5393,7 +5400,7 @@ nsHttpChannel::BeginConnect()
     }
 
     // if this somehow fails we can go on without it
-    gHttpHandler->AddConnectionHeader(&mRequestHead.Headers(), mCaps);
+    gHttpHandler->AddConnectionHeader(&mRequestHead, mCaps);
 
     if (mLoadFlags & VALIDATE_ALWAYS || BYPASS_LOCAL_CACHE(mLoadFlags))
         mCaps |= NS_HTTP_REFRESH_DNS;
@@ -6184,7 +6191,7 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
 // nsHttpChannel::nsIStreamListener
 //-----------------------------------------------------------------------------
 
-class OnTransportStatusAsyncEvent : public nsRunnable
+class OnTransportStatusAsyncEvent : public Runnable
 {
 public:
     OnTransportStatusAsyncEvent(nsITransportEventSink* aEventSink,
@@ -7372,6 +7379,50 @@ nsHttpChannel::MaybeWarnAboutAppCache()
     GetCallback(warner);
     if (warner) {
         warner->IssueWarning(nsIDocument::eAppCache, false);
+    }
+}
+
+void
+nsHttpChannel::SetLoadGroupUserAgentOverride()
+{
+    nsCOMPtr<nsIURI> uri;
+    GetURI(getter_AddRefs(uri));
+    nsAutoCString uriScheme;
+    if (uri) {
+        uri->GetScheme(uriScheme);
+    }
+
+    // We don't need a UA for file: protocols.
+    if (uriScheme.EqualsLiteral("file")) {
+        gHttpHandler->OnUserAgentRequest(this);
+        return;
+    }
+
+    nsIRequestContextService* rcsvc = gHttpHandler->GetRequestContextService();
+    nsCOMPtr<nsIRequestContext> rc;
+    if (rcsvc) {
+        rcsvc->GetRequestContext(mRequestContextID,
+                                    getter_AddRefs(rc));
+    }
+
+    nsAutoCString ua;
+    if (nsContentUtils::IsNonSubresourceRequest(this)) {
+        gHttpHandler->OnUserAgentRequest(this);
+        if (rc) {
+            GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
+            rc->SetUserAgentOverride(ua);
+        }
+    } else {
+        GetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua);
+        // Don't overwrite the UA if it is already set (eg by an XHR with explicit UA).
+        if (ua.IsEmpty()) {
+            if (rc) {
+                rc->GetUserAgentOverride(ua);
+                SetRequestHeader(NS_LITERAL_CSTRING("User-Agent"), ua, false);
+            } else {
+                gHttpHandler->OnUserAgentRequest(this);
+            }
+        }
     }
 }
 

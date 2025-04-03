@@ -475,7 +475,7 @@ private:
 namespace {
 
 class CollectOriginsHelper final
-  : public nsRunnable
+  : public Runnable
 {
   uint64_t mMinSizeToBeFreed;
 
@@ -506,7 +506,7 @@ private:
 };
 
 class OriginOperationBase
-  : public nsRunnable
+  : public Runnable
 {
 protected:
   enum State {
@@ -912,7 +912,7 @@ uint32_t gChunkSizeKB = kDefaultChunkSizeKB;
 bool gTestingEnabled = false;
 
 class StorageDirectoryHelper final
-  : public nsRunnable
+  : public Runnable
 {
   struct OriginProps;
 
@@ -3860,7 +3860,7 @@ QuotaManager::Observe(nsISupports* aSubject,
 
       // Give clients a chance to cleanup IO thread only objects.
       nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethod(this, &QuotaManager::ReleaseIOThreadObjects);
+        NewRunnableMethod(this, &QuotaManager::ReleaseIOThreadObjects);
       if (!runnable) {
         NS_WARNING("Failed to create runnable!");
       }
@@ -4500,7 +4500,7 @@ OriginOperationBase::DirectoryWork()
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(NormalOriginOperationBase, nsRunnable)
+NS_IMPL_ISUPPORTS_INHERITED0(NormalOriginOperationBase, Runnable)
 
 nsresult
 NormalOriginOperationBase::Open()

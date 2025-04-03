@@ -899,7 +899,7 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer,
     // Transform the current local clip by this APZC's async transform. If we're
     // using containerful scrolling, then the clip is not part of the scrolled
     // frame and should not be transformed.
-    if (asyncClip && !metrics.UsesContainerScrolling()) {
+    if (asyncClip && !scrollMetadata.UsesContainerScrolling()) {
       MOZ_ASSERT(asyncTransform.Is2D());
       asyncClip = Some(TransformBy(asyncTransform, *asyncClip));
     }
@@ -932,8 +932,8 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer,
     // Combine the local clip with the ancestor scrollframe clip. This is not
     // included in the async transform above, since the ancestor clip should not
     // move with this APZC.
-    if (scrollMetadata.HasClipRect()) {
-      ParentLayerIntRect clip = scrollMetadata.ClipRect();
+    if (scrollMetadata.HasScrollClip()) {
+      ParentLayerIntRect clip = scrollMetadata.ScrollClip().GetClipRect();
       if (aLayer->GetParent() && aLayer->GetParent()->GetTransformIsPerspective()) {
         // If our parent layer has a perspective transform, we want to apply
         // our scroll clip to it instead of to this layer (see bug 1168263).
@@ -961,10 +961,13 @@ AsyncCompositionManager::ApplyAsyncContentTransformToTree(Layer *aLayer,
     }
 
     // Append the ancestor mask layer for this scroll frame to ancestorMaskLayers.
-    if (scrollMetadata.GetMaskLayerIndex()) {
-      size_t maskLayerIndex = scrollMetadata.GetMaskLayerIndex().value();
-      Layer* ancestorMaskLayer = aLayer->GetAncestorMaskLayerAt(maskLayerIndex);
-      ancestorMaskLayers.AppendElement(ancestorMaskLayer);
+    if (scrollMetadata.HasScrollClip()) {
+      const LayerClip& scrollClip = scrollMetadata.ScrollClip();
+      if (scrollClip.GetMaskLayerIndex()) {
+        size_t maskLayerIndex = scrollClip.GetMaskLayerIndex().value();
+        Layer* ancestorMaskLayer = aLayer->GetAncestorMaskLayerAt(maskLayerIndex);
+        ancestorMaskLayers.AppendElement(ancestorMaskLayer);
+      }
     }
   }
 

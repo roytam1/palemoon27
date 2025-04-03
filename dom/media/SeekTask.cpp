@@ -86,6 +86,9 @@ SeekTask::SeekTask(const void* aDecoderID,
 
   mDropAudioUntilNextDiscontinuity = HasAudio();
   mDropVideoUntilNextDiscontinuity = HasVideo();
+
+  // Configure MediaDecoderReaderWrapper.
+  SetMediaDecoderReaderWrapperCallback();
 }
 
 SeekTask::~SeekTask()
@@ -152,12 +155,9 @@ SeekTask::Discard()
   // Disconnect MDSM.
   RejectIfExist(__func__);
 
-  // Disconnect MediaDecoderReader.
+  // Disconnect MediaDecoderReaderWrapper.
   mSeekRequest.DisconnectIfExists();
-  mAudioDataRequest.DisconnectIfExists();
-  mVideoDataRequest.DisconnectIfExists();
-  mAudioWaitRequest.DisconnectIfExists();
-  mVideoWaitRequest.DisconnectIfExists();
+  CancelMediaDecoderReaderWrapperCallback();
 
   mIsDiscarded = true;
 }
@@ -175,7 +175,7 @@ SeekTask::GetSeekJob()
 }
 
 bool
-SeekTask::Exists()
+SeekTask::Exists() const
 {
   return mSeekJob.Exists();
 }
@@ -216,8 +216,8 @@ SeekTask::EnsureAudioDecodeTaskQueued()
               IsAudioDecoding(), AudioRequestStatus());
 
   if (!IsAudioDecoding() ||
-      mAudioDataRequest.Exists() ||
-      mAudioWaitRequest.Exists() ||
+      mReader->IsRequestingAudioData() ||
+      mReader->IsWaitingAudioData() ||
       mSeekRequest.Exists()) {
     return NS_OK;
   }
@@ -235,8 +235,8 @@ SeekTask::EnsureVideoDecodeTaskQueued()
              IsVideoDecoding(), VideoRequestStatus());
 
   if (!IsVideoDecoding() ||
-      mVideoDataRequest.Exists() ||
-      mVideoWaitRequest.Exists() ||
+      mReader->IsRequestingVideoData() ||
+      mReader->IsWaitingVideoData() ||
       mSeekRequest.Exists()) {
     return NS_OK;
   }
@@ -249,10 +249,10 @@ const char*
 SeekTask::AudioRequestStatus()
 {
   AssertOwnerThread();
-  if (mAudioDataRequest.Exists()) {
-    MOZ_DIAGNOSTIC_ASSERT(!mAudioWaitRequest.Exists());
+  if (mReader->IsRequestingAudioData()) {
+    MOZ_DIAGNOSTIC_ASSERT(!mReader->IsWaitingAudioData());
     return "pending";
-  } else if (mAudioWaitRequest.Exists()) {
+  } else if (mReader->IsWaitingAudioData()) {
     return "waiting";
   }
   return "idle";
@@ -262,10 +262,10 @@ const char*
 SeekTask::VideoRequestStatus()
 {
   AssertOwnerThread();
-  if (mVideoDataRequest.Exists()) {
-    MOZ_DIAGNOSTIC_ASSERT(!mVideoWaitRequest.Exists());
+  if (mReader->IsRequestingVideoData()) {
+    MOZ_DIAGNOSTIC_ASSERT(!mReader->IsWaitingVideoData());
     return "pending";
-  } else if (mVideoWaitRequest.Exists()) {
+  } else if (mReader->IsWaitingVideoData()) {
     return "waiting";
   }
   return "idle";
@@ -279,9 +279,7 @@ SeekTask::RequestAudioData()
   SAMPLE_LOG("Queueing audio task - queued=%i, decoder-queued=%o",
              !!mSeekedAudioData, mReader->SizeOfAudioQueueInFrames());
 
-  mAudioDataRequest.Begin(mReader->RequestAudioData()
-    ->Then(OwnerThread(), __func__, this,
-           &SeekTask::OnAudioDecoded, &SeekTask::OnAudioNotDecoded));
+  mReader->RequestAudioData();
 }
 
 void
@@ -296,10 +294,7 @@ SeekTask::RequestVideoData()
                !!mSeekedVideoData, mReader->SizeOfVideoQueueInFrames(), skipToNextKeyFrame,
                currentTime.ToMicroseconds());
 
-  mVideoDataRequest.Begin(
-    mReader->RequestVideoData(skipToNextKeyFrame, currentTime)
-    ->Then(OwnerThread(), __func__, this,
-           &SeekTask::OnVideoDecoded, &SeekTask::OnVideoNotDecoded));
+  mReader->RequestVideoData(skipToNextKeyFrame, currentTime);
 }
 
 nsresult
@@ -425,6 +420,7 @@ SeekTask::IsAudioSeekComplete()
       mSeekJob.Exists(), mDropAudioUntilNextDiscontinuity, mIsAudioQueueFinished, !!mSeekedAudioData);
   return
     !HasAudio() ||
+    mSeekJob.mTarget.IsVideoOnly() ||
     (Exists() && !mDropAudioUntilNextDiscontinuity &&
      (mIsAudioQueueFinished || mSeekedAudioData));
 }
@@ -481,8 +477,10 @@ SeekTask::OnSeekResolved(media::TimeUnit)
   mSeekRequest.Complete();
   // We must decode the first samples of active streams, so we can determine
   // the new stream time. So dispatch tasks to do that.
-  EnsureAudioDecodeTaskQueued();
   EnsureVideoDecodeTaskQueued();
+  if (!mSeekJob.mTarget.IsVideoOnly()) {
+    EnsureAudioDecodeTaskQueued();
+  }
 }
 
 void
@@ -500,7 +498,6 @@ SeekTask::OnAudioDecoded(MediaData* aAudioSample)
   AssertOwnerThread();
   RefPtr<MediaData> audio(aAudioSample);
   MOZ_ASSERT(audio);
-  mAudioDataRequest.Complete();
 
   // The MDSM::mDecodedAudioEndTime will be updated once the whole SeekTask is
   // resolved.
@@ -553,7 +550,6 @@ SeekTask::OnAudioNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
 {
   AssertOwnerThread();
   SAMPLE_LOG("OnAduioNotDecoded (aReason=%u)", aReason);
-  mAudioDataRequest.Complete();
 
   if (aReason == MediaDecoderReader::DECODE_ERROR) {
     // If this is a decode error, delegate to the generic error path.
@@ -566,16 +562,7 @@ SeekTask::OnAudioNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   if (aReason == MediaDecoderReader::WAITING_FOR_DATA) {
     MOZ_ASSERT(mReader->IsWaitForDataSupported(),
                "Readers that send WAITING_FOR_DATA need to implement WaitForData");
-    RefPtr<SeekTask> self = this;
-    mAudioWaitRequest.Begin(mReader->WaitForData(MediaData::AUDIO_DATA)
-      ->Then(OwnerThread(), __func__,
-             [self] (MediaData::Type aType) -> void {
-               self->mAudioWaitRequest.Complete();
-               self->EnsureAudioDecodeTaskQueued();
-             },
-             [self] (WaitForDataRejectValue aRejection) -> void {
-               self->mAudioWaitRequest.Complete();
-             }));
+    mReader->WaitForData(MediaData::AUDIO_DATA);
 
     // We are out of data to decode and will enter buffering mode soon.
     // We want to play the frames we have already decoded, so we stop pre-rolling
@@ -602,7 +589,6 @@ SeekTask::OnVideoDecoded(MediaData* aVideoSample)
   AssertOwnerThread();
   RefPtr<MediaData> video(aVideoSample);
   MOZ_ASSERT(video);
-  mVideoDataRequest.Complete();
 
   // The MDSM::mDecodedVideoEndTime will be updated once the whole SeekTask is
   // resolved.
@@ -657,7 +643,6 @@ SeekTask::OnVideoNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
 {
   AssertOwnerThread();
   SAMPLE_LOG("OnVideoNotDecoded (aReason=%u)", aReason);
-  mVideoDataRequest.Complete();
 
   if (aReason == MediaDecoderReader::DECODE_ERROR) {
     // If this is a decode error, delegate to the generic error path.
@@ -670,16 +655,7 @@ SeekTask::OnVideoNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   if (aReason == MediaDecoderReader::WAITING_FOR_DATA) {
     MOZ_ASSERT(mReader->IsWaitForDataSupported(),
                "Readers that send WAITING_FOR_DATA need to implement WaitForData");
-    RefPtr<SeekTask> self = this;
-    mVideoWaitRequest.Begin(mReader->WaitForData(MediaData::VIDEO_DATA)
-      ->Then(OwnerThread(), __func__,
-             [self] (MediaData::Type aType) -> void {
-               self->mVideoWaitRequest.Complete();
-               self->EnsureVideoDecodeTaskQueued();
-             },
-             [self] (WaitForDataRejectValue aRejection) -> void {
-               self->mVideoWaitRequest.Complete();
-             }));
+    mReader->WaitForData(MediaData::VIDEO_DATA);
 
     // We are out of data to decode and will enter buffering mode soon.
     // We want to play the frames we have already decoded, so we stop pre-rolling
@@ -710,4 +686,51 @@ SeekTask::OnVideoNotDecoded(MediaDecoderReader::NotDecodedReason aReason)
   }
 }
 
+void
+SeekTask::SetMediaDecoderReaderWrapperCallback()
+{
+  mAudioCallbackID =
+    mReader->SetAudioCallback(this, &SeekTask::OnAudioDecoded,
+                                    &SeekTask::OnAudioNotDecoded);
+
+  mVideoCallbackID =
+    mReader->SetVideoCallback(this, &SeekTask::OnVideoDecoded,
+                                    &SeekTask::OnVideoNotDecoded);
+
+  RefPtr<SeekTask> self = this;
+  mWaitAudioCallbackID =
+    mReader->SetWaitAudioCallback(
+      [self] (MediaData::Type aType) -> void {
+        self->EnsureAudioDecodeTaskQueued();
+      },
+      [self] (WaitForDataRejectValue aRejection) -> void {});
+
+  mWaitVideoCallbackID =
+    mReader->SetWaitVideoCallback(
+      [self] (MediaData::Type aType) -> void {
+        self->EnsureVideoDecodeTaskQueued();
+      },
+      [self] (WaitForDataRejectValue aRejection) -> void {});
+
+  DECODER_LOG("SeekTask set audio callbacks: mAudioCallbackID = %d\n", (int)mAudioCallbackID);
+  DECODER_LOG("SeekTask set video callbacks: mVideoCallbackID = %d\n", (int)mAudioCallbackID);
+  DECODER_LOG("SeekTask set wait audio callbacks: mWaitAudioCallbackID = %d\n", (int)mWaitAudioCallbackID);
+  DECODER_LOG("SeekTask set wait video callbacks: mWaitVideoCallbackID = %d\n", (int)mWaitVideoCallbackID);
+}
+
+void
+SeekTask::CancelMediaDecoderReaderWrapperCallback()
+{
+    DECODER_LOG("SeekTask cancel audio callbacks: mVideoCallbackID = %d\n", (int)mAudioCallbackID);
+    mReader->CancelAudioCallback(mAudioCallbackID);
+
+    DECODER_LOG("SeekTask cancel video callbacks: mVideoCallbackID = %d\n", (int)mVideoCallbackID);
+    mReader->CancelVideoCallback(mVideoCallbackID);
+
+    DECODER_LOG("SeekTask cancel wait audio callbacks: mWaitAudioCallbackID = %d\n", (int)mWaitAudioCallbackID);
+    mReader->CancelWaitAudioCallback(mWaitAudioCallbackID);
+
+    DECODER_LOG("SeekTask cancel wait video callbacks: mWaitVideoCallbackID = %d\n", (int)mWaitVideoCallbackID);
+    mReader->CancelWaitVideoCallback(mWaitVideoCallbackID);
+}
 } // namespace mozilla

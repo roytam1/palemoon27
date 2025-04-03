@@ -378,7 +378,7 @@ public:
   using mozilla::dom::EventTarget::RemoveEventListener;
   virtual void AddEventListener(const nsAString& aType,
                                 mozilla::dom::EventListener* aListener,
-                                bool aUseCapture,
+                                const mozilla::dom::AddEventListenerOptionsOrBoolean& aOptions,
                                 const mozilla::dom::Nullable<bool>& aWantsUntrusted,
                                 mozilla::ErrorResult& aRv) override;
   virtual nsIDOMWindow* GetOwnerGlobalForBindings() override
@@ -865,6 +865,7 @@ public:
   already_AddRefed<nsIDOMWindow> GetParent(mozilla::ErrorResult& aError);
   already_AddRefed<nsPIDOMWindow> GetParent() override;
   nsPIDOMWindow* GetScriptableParent() override;
+  nsPIDOMWindow* GetScriptableParentOrNull() override;
   mozilla::dom::Element* GetFrameElementOuter();
   mozilla::dom::Element* GetFrameElement(mozilla::ErrorResult& aError);
   already_AddRefed<nsIDOMWindow> OpenOuter(const nsAString& aUrl,
@@ -884,6 +885,9 @@ public:
   nsIDOMOfflineResourceList* GetApplicationCache(mozilla::ErrorResult& aError);
 
   mozilla::dom::Console* GetConsole(mozilla::ErrorResult& aRv);
+
+  // https://w3c.github.io/webappsec-secure-contexts/#dom-window-issecurecontext
+  bool IsSecureContext() const;
 
   void GetSidebar(mozilla::dom::OwningExternalOrWindowProxy& aResult,
                   mozilla::ErrorResult& aRv);
@@ -1613,6 +1617,10 @@ private:
 
   void DisconnectEventTargetObjects();
 
+  // Called only on outer windows to compute the value that will be returned by
+  // IsSecureContext() for the inner window that corresponds to aDocument.
+  bool ComputeIsSecureContext(nsIDocument* aDocument);
+
 protected:
   // This member is also used on both inner and outer windows, but
   // for slightly different purposes. On inner windows it means the
@@ -1633,6 +1641,7 @@ protected:
   // event posted.  If this is set, just ignore window.close() calls.
   bool                          mHavePendingClose : 1;
   bool                          mHadOriginalOpener : 1;
+  bool                          mOriginalOpenerWasSecureContext : 1;
   bool                          mIsPopupSpam : 1;
 
   // Indicates whether scripts are allowed to close this window.

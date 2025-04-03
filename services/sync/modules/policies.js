@@ -599,7 +599,8 @@ ErrorHandler.prototype = {
     root.level = Log.Level[Svc.Prefs.get("log.rootLogger")];
 
     let logs = ["Sync", "FirefoxAccounts", "Hawk", "Common.TokenServerClient",
-                "Sync.SyncMigration"];
+                "Sync.SyncMigration", "Services.Common.RESTRequest", "Services.Common.RESTRequest",
+               ];
 
     this._logManager = new LogManager(Svc.Prefs, logs, "sync");
   },

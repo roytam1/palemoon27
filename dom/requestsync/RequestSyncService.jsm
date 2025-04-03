@@ -20,7 +20,6 @@ const RSYNC_STATE_ENABLED = "enabled";
 const RSYNC_STATE_DISABLED = "disabled";
 const RSYNC_STATE_WIFIONLY = "wifiOnly";
 
-Cu.import("resource://gre/modules/BrowserUtils.jsm");
 Cu.import('resource://gre/modules/IndexedDBHelper.jsm');
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -181,7 +180,7 @@ this.RequestSyncService = {
     let dbKeys = [];
 
     for (let key in this._registrations) {
-      let prin = BrowserUtils.principalFromOrigin(key);
+      let prin = Services.scriptSecurityManager.createCodebasePrincipalFromOrigin(key);
       if (!ChromeUtils.originAttributesMatchPattern(prin.originAttributes, pattern)) {
         continue;
       }
@@ -524,8 +523,8 @@ this.RequestSyncService = {
         return;
       }
 
-      if (aObj.principal.isInBrowserElement != aData.isInBrowserElement ||
-          aObj.principal.origin != aData.origin) {
+      if (aObj.principal.isInIsolatedMozBrowserElement != aData.isInBrowserElement ||
+          aObj.principal.originNoSuffix != aData.origin) {
         return;
       }
 
@@ -573,8 +572,8 @@ this.RequestSyncService = {
         return;
       }
 
-      if (aObj.principal.isInBrowserElement != aData.isInBrowserElement ||
-          aObj.principal.origin != aData.origin) {
+      if (aObj.principal.isInIsolatedMozBrowserElement != aData.isInBrowserElement ||
+          aObj.principal.originNoSuffix != aData.origin) {
         return;
       }
 
@@ -619,8 +618,8 @@ this.RequestSyncService = {
     let obj = this.createPartialTaskObject(aObj);
 
     obj.app = { manifestURL: '',
-                origin: aObj.principal.origin,
-                isInBrowserElement: aObj.principal.isInBrowserElement };
+                origin: aObj.principal.originNoSuffix,
+                isInBrowserElement: aObj.principal.isInIsolatedMozBrowserElement };
 
     let app = appsService.getAppByLocalId(aObj.principal.appId);
     if (app) {

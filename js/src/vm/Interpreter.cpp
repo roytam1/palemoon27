@@ -782,11 +782,7 @@ js::HasInstance(JSContext* cx, HandleObject obj, HandleValue v, bool* bp)
     RootedValue local(cx, v);
     if (JSHasInstanceOp hasInstance = clasp->getHasInstance())
         return hasInstance(cx, obj, &local, bp);
-
-    RootedValue val(cx, ObjectValue(*obj));
-    ReportValueError(cx, JSMSG_BAD_INSTANCEOF_RHS,
-                        JSDVG_SEARCH_STACK, val, nullptr);
-    return false;
+    return js::InstanceOfOperator(cx, obj, &local, bp);
 }
 
 static inline bool
@@ -1543,11 +1539,11 @@ class ReservedRooted : public ReservedRootedBase<T>
     }
 
     explicit ReservedRooted(Rooted<T>* root) : savedRoot(root) {
-        *root = js::GCPolicy<T>::initial();
+        *root = JS::GCPolicy<T>::initial();
     }
 
     ~ReservedRooted() {
-        *savedRoot = js::GCPolicy<T>::initial();
+        *savedRoot = JS::GCPolicy<T>::initial();
     }
 
     void set(const T& p) const { *savedRoot = p; }
@@ -3401,7 +3397,8 @@ CASE(JSOP_LAMBDA)
     JSObject* obj = Lambda(cx, fun, REGS.fp()->scopeChain());
     if (!obj)
         goto error;
-    MOZ_ASSERT(obj->getProto());
+
+    MOZ_ASSERT(obj->staticPrototype());
     PUSH_OBJECT(*obj);
 }
 END_CASE(JSOP_LAMBDA)
@@ -3414,7 +3411,8 @@ CASE(JSOP_LAMBDA_ARROW)
     JSObject* obj = LambdaArrow(cx, fun, REGS.fp()->scopeChain(), newTarget);
     if (!obj)
         goto error;
-    MOZ_ASSERT(obj->getProto());
+
+    MOZ_ASSERT(obj->staticPrototype());
     REGS.sp[-1].setObject(*obj);
 }
 END_CASE(JSOP_LAMBDA_ARROW)
@@ -4257,7 +4255,7 @@ js::DefFunOperation(JSContext* cx, HandleScript script, HandleObject scopeChain,
         parent = parent->enclosingScope();
 
     /* ES5 10.5 (NB: with subsequent errata). */
-    RootedPropertyName name(cx, fun->atom()->asPropertyName());
+    RootedPropertyName name(cx, fun->name()->asPropertyName());
 
     RootedShape shape(cx);
     RootedObject pobj(cx);
@@ -4969,8 +4967,8 @@ js::ThrowUninitializedThis(JSContext* cx, AbstractFramePtr frame)
     if (fun->isDerivedClassConstructor()) {
         const char* name = "anonymous";
         JSAutoByteString str;
-        if (fun->atom()) {
-            if (!AtomToPrintableString(cx, fun->atom(), &str))
+        if (fun->name()) {
+            if (!AtomToPrintableString(cx, fun->name(), &str))
                 return false;
             name = str.ptr();
         }

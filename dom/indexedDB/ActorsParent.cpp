@@ -21,7 +21,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/AppProcessChecker.h"
 #include "mozilla/AutoRestore.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/Hal.h"
 #include "mozilla/LazyIdleThread.h"
 #include "mozilla/Maybe.h"
@@ -5374,7 +5374,7 @@ private:
 };
 
 class ConnectionPool::ConnectionRunnable
-  : public nsRunnable
+  : public Runnable
 {
 protected:
   DatabaseInfo* mDatabaseInfo;
@@ -5522,7 +5522,7 @@ protected:
 };
 
 class ConnectionPool::FinishCallbackWrapper final
-  : public nsRunnable
+  : public Runnable
 {
   RefPtr<ConnectionPool> mConnectionPool;
   RefPtr<FinishCallback> mCallback;
@@ -5615,7 +5615,7 @@ public:
 };
 
 class ConnectionPool::ThreadRunnable final
-  : public nsRunnable
+  : public Runnable
 {
   // Only touched on the background thread.
   static uint32_t sNextSerialNumber;
@@ -5698,7 +5698,7 @@ private:
  ******************************************************************************/
 
 class DatabaseOperationBase
-  : public nsRunnable
+  : public Runnable
   , public mozIStorageProgressHandler
 {
   friend class UpgradeFileIdsFunction;
@@ -6083,7 +6083,7 @@ private:
 };
 
 class WaitForTransactionsHelper final
-  : public nsRunnable
+  : public Runnable
 {
   nsCOMPtr<nsIEventTarget> mOwningThread;
   const nsCString mDatabaseId;
@@ -6135,7 +6135,7 @@ private:
 };
 
 class UnlockDirectoryRunnable final
-  : public nsRunnable
+  : public Runnable
 {
   RefPtr<DirectoryLock> mDirectoryLock;
 
@@ -9074,7 +9074,7 @@ struct QuotaClient::MultipleMaintenanceInfo final
 };
 
 class QuotaClient::ShutdownWorkThreadsRunnable final
-  : public nsRunnable
+  : public Runnable
 {
   RefPtr<QuotaClient> mQuotaClient;
 
@@ -11599,7 +11599,7 @@ ConnectionPool::ShutdownThread(ThreadInfo& aThreadInfo)
   MOZ_ALWAYS_SUCCEEDS(thread->Dispatch(runnable, NS_DISPATCH_NORMAL));
 
   nsCOMPtr<nsIRunnable> shutdownRunnable =
-    NS_NewRunnableMethod(thread, &nsIThread::Shutdown);
+    NewRunnableMethod(thread, &nsIThread::Shutdown);
   MOZ_ALWAYS_SUCCEEDS(NS_DispatchToMainThread(shutdownRunnable));
 
   mTotalThreadCount--;
@@ -11705,7 +11705,7 @@ ConnectionPool::ScheduleTransaction(TransactionInfo* aTransactionInfo,
         // We need a thread right now so force all idle processing to stop by
         // posting a dummy runnable to each thread that might be doing idle
         // maintenance.
-        nsCOMPtr<nsIRunnable> runnable = new nsRunnable();
+        nsCOMPtr<nsIRunnable> runnable = new Runnable();
 
         for (uint32_t index = mDatabasesPerformingIdleMaintenance.Length();
              index > 0;
@@ -12340,7 +12340,7 @@ FinishCallbackWrapper::~FinishCallbackWrapper()
   MOZ_ASSERT(!mCallback);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(ConnectionPool::FinishCallbackWrapper, nsRunnable)
+NS_IMPL_ISUPPORTS_INHERITED0(ConnectionPool::FinishCallbackWrapper, Runnable)
 
 nsresult
 ConnectionPool::
@@ -12400,7 +12400,7 @@ ThreadRunnable::~ThreadRunnable()
   MOZ_ASSERT(!mContinueRunning);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(ConnectionPool::ThreadRunnable, nsRunnable)
+NS_IMPL_ISUPPORTS_INHERITED0(ConnectionPool::ThreadRunnable, Runnable)
 
 nsresult
 ConnectionPool::
@@ -13107,8 +13107,7 @@ WaitForTransactionsHelper::CallCallback()
   mState = State::Complete;
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(WaitForTransactionsHelper,
-                             nsRunnable)
+NS_IMPL_ISUPPORTS_INHERITED0(WaitForTransactionsHelper, Runnable)
 
 NS_IMETHODIMP
 WaitForTransactionsHelper::Run()
@@ -13452,7 +13451,7 @@ Database::MaybeCloseConnection()
       IsClosed() &&
       mDirectoryLock) {
     nsCOMPtr<nsIRunnable> callback =
-      NS_NewRunnableMethod(this, &Database::ConnectionClosedCallback);
+      NewRunnableMethod(this, &Database::ConnectionClosedCallback);
 
     RefPtr<WaitForTransactionsHelper> helper =
       new WaitForTransactionsHelper(Id(), callback);
@@ -17154,7 +17153,7 @@ QuotaClient::StartIdleMaintenance()
   }
 
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethodWithArg<uint32_t>(
+    NewRunnableMethod<uint32_t>(
       this,
       &QuotaClient::FindDatabasesForIdleMaintenance,
       mMaintenanceRunId);
@@ -17380,7 +17379,7 @@ QuotaClient::FindDatabasesForIdleMaintenance(uint32_t aRunId)
 
       if (!databasePaths.IsEmpty()) {
         nsCOMPtr<nsIRunnable> runnable =
-          NS_NewRunnableMethodWithArgs<uint32_t, MultipleMaintenanceInfo&&>(
+          NewRunnableMethod<uint32_t, MultipleMaintenanceInfo&&>(
             this,
             &QuotaClient::GetDirectoryLockForIdleMaintenance,
             aRunId,
@@ -17449,7 +17448,7 @@ QuotaClient::ScheduleIdleMaintenance(uint32_t aRunId,
 
   for (const nsString& databasePath : aMaintenanceInfo.mDatabasePaths) {
     nsCOMPtr<nsIRunnable> runnable =
-      NS_NewRunnableMethodWithArgs<uint32_t,
+      NewRunnableMethod<uint32_t,
                                    nsCString,
                                    SingleMaintenanceInfo&&>(
         this,
@@ -17484,7 +17483,7 @@ QuotaClient::PerformIdleMaintenanceOnDatabase(
   PerformIdleMaintenanceOnDatabaseInternal(aRunId, aMaintenanceInfo);
 
   nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethodWithArgs<nsCString, nsString>(
+    NewRunnableMethod<nsCString, nsString>(
       this,
       &QuotaClient::MaybeReleaseDirectoryLockForIdleMaintenance,
       aKey,
@@ -18127,7 +18126,7 @@ AutoProgressHandler::OnProgress(mozIStorageConnection* aConnection,
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(QuotaClient::ShutdownWorkThreadsRunnable,
-                             nsRunnable)
+                             Runnable)
 
 NS_IMETHODIMP
 QuotaClient::
@@ -19153,7 +19152,7 @@ DatabaseOperationBase::ObjectStoreHasIndexes(DatabaseConnection* aConnection,
 }
 
 NS_IMPL_ISUPPORTS_INHERITED(DatabaseOperationBase,
-                            nsRunnable,
+                            Runnable,
                             mozIStorageProgressHandler)
 
 NS_IMETHODIMP
@@ -21085,7 +21084,7 @@ OpenDatabaseOp::SendResults()
     mDatabase = nullptr;
   } else if (mDirectoryLock) {
     nsCOMPtr<nsIRunnable> callback =
-      NS_NewRunnableMethod(this, &OpenDatabaseOp::ConnectionClosedCallback);
+      NewRunnableMethod(this, &OpenDatabaseOp::ConnectionClosedCallback);
 
     RefPtr<WaitForTransactionsHelper> helper =
       new WaitForTransactionsHelper(mDatabaseId, callback);

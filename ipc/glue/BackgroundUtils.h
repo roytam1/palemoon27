@@ -28,7 +28,7 @@ struct ParamTraits<mozilla::OriginAttributes>
     WriteParam(aMsg, suffix);
   }
 
-  static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
+  static bool Read(const Message* aMsg, PickleIterator* aIter, paramType* aResult)
   {
     nsAutoCString suffix;
     return ReadParam(aMsg, aIter, &suffix) &&

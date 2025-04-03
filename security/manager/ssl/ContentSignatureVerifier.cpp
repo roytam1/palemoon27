@@ -7,18 +7,19 @@
 #include "ContentSignatureVerifier.h"
 
 #include "BRNameMatchingPolicy.h"
+#include "SharedCertVerifier.h"
 #include "cryptohi.h"
 #include "keyhi.h"
+#include "mozilla/Casting.h"
 #include "nsCOMPtr.h"
 #include "nsNSSComponent.h"
-#include "nssb64.h"
+#include "nsSecurityHeaderParser.h"
 #include "nsWhitespaceTokenizer.h"
 #include "nsXPCOMStrings.h"
+#include "nssb64.h"
 #include "pkix/pkix.h"
 #include "pkix/pkixtypes.h"
 #include "secerr.h"
-#include "SharedCertVerifier.h"
-#include "nsSecurityHeaderParser.h"
 
 NS_IMPL_ISUPPORTS(ContentSignatureVerifier, nsIContentSignatureVerifier)
 
@@ -42,12 +43,13 @@ ContentSignatureVerifier::~ContentSignatureVerifier()
   shutdown(calledFromObject);
 }
 
-nsresult
+NS_IMETHODIMP
 ContentSignatureVerifier::VerifyContentSignature(
   const nsACString& aData, const nsACString& aCSHeader,
-  const nsACString& aCertChain, const uint32_t aSource, bool* _retval)
+  const nsACString& aCertChain, const nsACString& aName, bool* _retval)
 {
-  nsresult rv = CreateContext(aData, aCSHeader, aCertChain, aSource);
+  NS_ENSURE_ARG(_retval);
+  nsresult rv = CreateContext(aData, aCSHeader, aCertChain, aName);
   if (NS_FAILED(rv)) {
     *_retval = false;
     CSVerifier_LOG(("CSVerifier: Signature verification failed\n"));
@@ -125,13 +127,14 @@ ReadChainIntoCertList(const nsACString& aCertChain, CERTCertList* aCertList,
 }
 
 // Create a context for a content signature verification.
-// It sets signature, certificate chain, and context that shold be used to
-// verify the data. The optional data parameter is added to the data to verify.
+// It sets signature, certificate chain and name that should be used to verify
+// the data. The data parameter is the first part of the data to verify (this
+// can be the empty string).
 NS_IMETHODIMP
 ContentSignatureVerifier::CreateContext(const nsACString& aData,
                                         const nsACString& aCSHeader,
                                         const nsACString& aCertChain,
-                                        const uint32_t aSource)
+                                        const nsACString& aName)
 {
   MutexAutoLock lock(mMutex);
   nsNSSShutDownPreventionLock locker;
@@ -144,8 +147,7 @@ ContentSignatureVerifier::CreateContext(const nsACString& aData,
     return NS_ERROR_ALREADY_INITIALIZED;
   }
 
-  ScopedCERTCertList certCertList(CERT_NewCertList());
-
+  UniqueCERTCertList certCertList(CERT_NewCertList());
   if (!certCertList) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -164,7 +166,7 @@ ContentSignatureVerifier::CreateContext(const nsACString& aData,
 
   Input certDER;
   Result result =
-    certDER.Init(reinterpret_cast<const uint8_t*>(certSecItem->data),
+    certDER.Init(BitwiseCast<uint8_t*, unsigned char*>(certSecItem->data),
                  certSecItem->len);
   if (result != Success) {
     return NS_ERROR_FAILURE;
@@ -186,24 +188,10 @@ ContentSignatureVerifier::CreateContext(const nsACString& aData,
   }
 
   // Check the SAN
-  nsAutoCString hostname;
-
   Input hostnameInput;
 
-  switch (aSource) {
-    case ABOUT_NEWTAB:
-      hostname = "remote-newtab-signer.mozilla.org";
-      break;
-    case ONECRL:
-      hostname = "oneCRL-signer.mozilla.org";
-      break;
-    default:
-      CSVerifier_LOG(("CSVerifier: bad context\n"));
-      return NS_ERROR_INVALID_ARG;
-  }
-
-  result = hostnameInput.Init(uint8_t_ptr_cast(hostname.BeginReading()),
-                              hostname.Length());
+  result = hostnameInput.Init(uint8_t_ptr_cast(aName.BeginReading()),
+                              aName.Length());
   if (result != Success) {
     return NS_ERROR_FAILURE;
   }

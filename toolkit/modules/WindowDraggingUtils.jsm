@@ -3,9 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifdef XP_WIN
-#define USE_HITTEST
+#define HAVE_CSS_WINDOW_DRAG_SUPPORT
 #elifdef MOZ_WIDGET_COCOA
-#define USE_HITTEST
+#define HAVE_CSS_WINDOW_DRAG_SUPPORT
 #endif
 
 this.EXPORTED_SYMBOLS = [ "WindowDraggingElement" ];
@@ -13,10 +13,10 @@ this.EXPORTED_SYMBOLS = [ "WindowDraggingElement" ];
 this.WindowDraggingElement = function WindowDraggingElement(elem) {
   this._elem = elem;
   this._window = elem.ownerDocument.defaultView;
-#ifdef USE_HITTEST
-  if (!this.isPanel())
-    this._elem.addEventListener("MozMouseHittest", this, false);
-  else
+#ifdef HAVE_CSS_WINDOW_DRAG_SUPPORT
+  if (!this.isPanel()) {
+    return;
+  }
 #endif
   this._elem.addEventListener("mousedown", this, false);
 };
@@ -60,14 +60,6 @@ WindowDraggingElement.prototype = {
   },
   handleEvent: function(aEvent) {
     let isPanel = this.isPanel();
-#ifdef USE_HITTEST
-    if (!isPanel) {
-      if (this.shouldDrag(aEvent))
-        aEvent.preventDefault();
-      return;
-    }
-#endif
-
     switch (aEvent.type) {
       case "mousedown":
         if (!this.shouldDrag(aEvent))

@@ -50,8 +50,8 @@
 
 /* Workaround build problem with Sun Studio 12 */
 #if defined(__SUNPRO_C) || defined(__SUNPRO_CC)
-#  undef MOZ_WARN_UNUSED_RESULT
-#  define MOZ_WARN_UNUSED_RESULT
+#  undef MOZ_MUST_USE
+#  define MOZ_MUST_USE
 #  undef MOZ_ALLOCATOR
 #  define MOZ_ALLOCATOR
 #endif
@@ -113,10 +113,10 @@ MOZALLOC_EXPORT char* moz_xstrndup(const char* str, size_t strsize)
 
 
 #if defined(HAVE_POSIX_MEMALIGN)
-MOZALLOC_EXPORT MOZ_WARN_UNUSED_RESULT
+MOZALLOC_EXPORT MOZ_MUST_USE
 int moz_xposix_memalign(void **ptr, size_t alignment, size_t size);
 
-MOZALLOC_EXPORT MOZ_WARN_UNUSED_RESULT
+MOZALLOC_EXPORT MOZ_MUST_USE
 int moz_posix_memalign(void **ptr, size_t alignment, size_t size);
 #endif /* if defined(HAVE_POSIX_MEMALIGN) */
 
@@ -328,6 +328,11 @@ public:
 
     void reportAllocOverflow() const
     {
+    }
+
+    bool checkSimulatedOOM() const
+    {
+        return true;
     }
 };
 

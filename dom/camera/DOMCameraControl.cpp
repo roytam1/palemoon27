@@ -73,10 +73,8 @@ public:
                                 TrackID aInputTrackID) override
   {
     if (aTrackEvents & TRACK_EVENT_CREATED) {
-      nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethodWithArgs<TrackID>(
-          this, &TrackCreatedListener::DoNotifyTrackCreated, aID);
-      aGraph->DispatchToMainThreadAfterStreamStateUpdate(runnable.forget());
+      aGraph->DispatchToMainThreadAfterStreamStateUpdate(NewRunnableMethod<TrackID>(
+          this, &TrackCreatedListener::DoNotifyTrackCreated, aID));
     }
   }
 
@@ -262,6 +260,7 @@ nsDOMCameraControl::nsDOMCameraControl(uint32_t aCameraId,
 {
   DOM_CAMERA_LOGT("%s:%d : this=%p\n", __func__, __LINE__, this);
   mInput = new CameraPreviewMediaStream(this);
+  mOwnedStream = mInput;
 
   BindToOwner(aWindow);
 

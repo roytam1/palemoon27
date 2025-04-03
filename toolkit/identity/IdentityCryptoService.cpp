@@ -90,7 +90,7 @@ private:
 
 NS_IMPL_ISUPPORTS(KeyPair, nsIIdentityKeyPair)
 
-class KeyGenRunnable : public nsRunnable, public nsNSSShutDownObject
+class KeyGenRunnable : public Runnable, public nsNSSShutDownObject
 {
 public:
   NS_DECL_NSIRUNNABLE
@@ -128,7 +128,7 @@ private:
   void operator=(const KeyGenRunnable &) = delete;
 };
 
-class SignRunnable : public nsRunnable, public nsNSSShutDownObject
+class SignRunnable : public Runnable, public nsNSSShutDownObject
 {
 public:
   NS_DECL_NSIRUNNABLE
@@ -226,11 +226,9 @@ NS_IMETHODIMP
 IdentityCryptoService::Base64UrlEncode(const nsACString & utf8Input,
                                        nsACString & result)
 {
-  dom::Base64URLEncodeOptions options;
-  options.mPad = true;
   return Base64URLEncode(utf8Input.Length(),
-    reinterpret_cast<const uint8_t*>(utf8Input.BeginReading()), options,
-    result);
+    reinterpret_cast<const uint8_t*>(utf8Input.BeginReading()),
+    Base64URLEncodePaddingPolicy::Include, result);
 }
 
 KeyPair::KeyPair(SECKEYPrivateKey * privateKey, SECKEYPublicKey * publicKey,
@@ -336,7 +334,7 @@ KeyGenRunnable::KeyGenRunnable(KeyType keyType,
 {
 }
 
-MOZ_WARN_UNUSED_RESULT nsresult
+MOZ_MUST_USE nsresult
 GenerateKeyPair(PK11SlotInfo * slot,
                 SECKEYPrivateKey ** privateKey,
                 SECKEYPublicKey ** publicKey,
@@ -362,7 +360,7 @@ GenerateKeyPair(PK11SlotInfo * slot,
 }
 
 
-MOZ_WARN_UNUSED_RESULT nsresult
+MOZ_MUST_USE nsresult
 GenerateRSAKeyPair(PK11SlotInfo * slot,
                    SECKEYPrivateKey ** privateKey,
                    SECKEYPublicKey ** publicKey)
@@ -376,7 +374,7 @@ GenerateRSAKeyPair(PK11SlotInfo * slot,
                          &rsaParams);
 }
 
-MOZ_WARN_UNUSED_RESULT nsresult
+MOZ_MUST_USE nsresult
 GenerateDSAKeyPair(PK11SlotInfo * slot,
                    SECKEYPrivateKey ** privateKey,
                    SECKEYPublicKey ** publicKey)
@@ -526,9 +524,9 @@ SignRunnable::Run()
           mRv = MapSECStatus(PK11_Sign(mPrivateKey, &sig, &hashItem));
         }
         if (NS_SUCCEEDED(mRv)) {
-          dom::Base64URLEncodeOptions encodeOptions;
-          encodeOptions.mPad = true;
-          mRv = Base64URLEncode(sig.len, sig.data, encodeOptions, mSignature);
+          mRv = Base64URLEncode(sig.len, sig.data,
+                                Base64URLEncodePaddingPolicy::Include,
+                                mSignature);
         }
         SECITEM_FreeItem(&sig, false);
       }

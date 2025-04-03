@@ -373,7 +373,7 @@ nsScriptLoader::PreloadURIComparator::Equals(const PreloadInfo &aPi,
          same;
 }
 
-class nsScriptRequestProcessor : public nsRunnable
+class nsScriptRequestProcessor : public Runnable
 {
 private:
   RefPtr<nsScriptLoader> mLoader;
@@ -523,8 +523,8 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     if (!scriptURI) {
       // Asynchronously report the failure to create a URI object
       NS_DispatchToCurrentThread(
-        NS_NewRunnableMethod(aElement,
-                             &nsIScriptElement::FireErrorEvent));
+        NewRunnableMethod(aElement,
+                          &nsIScriptElement::FireErrorEvent));
       return false;
     }
 
@@ -590,8 +590,8 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       if (NS_FAILED(rv)) {
         // Asynchronously report the load failure
         NS_DispatchToCurrentThread(
-          NS_NewRunnableMethod(aElement,
-                               &nsIScriptElement::FireErrorEvent));
+          NewRunnableMethod(aElement,
+                            &nsIScriptElement::FireErrorEvent));
         return false;
       }
     }
@@ -748,7 +748,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 
 namespace {
 
-class NotifyOffThreadScriptLoadCompletedRunnable : public nsRunnable
+class NotifyOffThreadScriptLoadCompletedRunnable : public Runnable
 {
   RefPtr<nsScriptLoadRequest> mRequest;
   RefPtr<nsScriptLoader> mLoader;
@@ -1170,10 +1170,8 @@ void
 nsScriptLoader::ProcessPendingRequestsAsync()
 {
   if (mParserBlockingRequest || !mPendingChildLoaders.IsEmpty()) {
-    nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(this,
-      &nsScriptLoader::ProcessPendingRequests);
-
-    NS_DispatchToCurrentThread(ev);
+    NS_DispatchToCurrentThread(NewRunnableMethod(this,
+                                                 &nsScriptLoader::ProcessPendingRequests));
   }
 }
 
@@ -1581,7 +1579,7 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
 
   if (!aString.empty()) {
     aRequest->mScriptTextLength = aString.length();
-    aRequest->mScriptTextBuf = aString.extractRawBuffer();
+    aRequest->mScriptTextBuf = aString.extractOrCopyRawBuffer();
   }
 
   // This assertion could fire errorously if we ran out of memory when

@@ -914,6 +914,11 @@ static bool
 ShouldPersistAttribute(Element* aElement, nsIAtom* aAttribute)
 {
     if (aElement->IsXULElement(nsGkAtoms::window)) {
+        // This is not an element of the top document, its owner is
+        // not an nsXULWindow. Persist it.
+        if (aElement->OwnerDoc()->GetParentDocument()) {
+            return true;
+        }
         // The following attributes of xul:window should be handled in
         // nsXULWindow::SavePersistentAttributes instead of here.
         if (aAttribute == nsGkAtoms::screenX ||
@@ -1010,7 +1015,7 @@ XULDocument::AttributeChanged(nsIDocument* aDocument,
     if (ShouldPersistAttribute(aElement, aAttribute) && !persist.IsEmpty() &&
         // XXXldb This should check that it's a token, not just a substring.
         persist.Find(nsDependentAtomString(aAttribute)) >= 0) {
-        nsContentUtils::AddScriptRunner(NS_NewRunnableMethodWithArgs
+        nsContentUtils::AddScriptRunner(NewRunnableMethod
             <nsIContent*, int32_t, nsIAtom*>
             (this, &XULDocument::DoPersist, aElement, kNameSpaceID_None,
             aAttribute));
@@ -3130,7 +3135,7 @@ XULDocument::MaybeBroadcast()
         if (!nsContentUtils::IsSafeToRunScript()) {
             if (!mInDestructor) {
                 nsContentUtils::AddScriptRunner(
-                    NS_NewRunnableMethod(this, &XULDocument::MaybeBroadcast));
+                    NewRunnableMethod(this, &XULDocument::MaybeBroadcast));
             }
             return;
         }

@@ -523,7 +523,7 @@ Element::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aGivenProto)
       }
       else {
         nsContentUtils::AddScriptRunner(
-          NS_NewRunnableMethod(binding, &nsXBLBinding::ExecuteAttachedHandler));
+          NewRunnableMethod(binding, &nsXBLBinding::ExecuteAttachedHandler));
       }
     }
   }
@@ -2125,14 +2125,14 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   uint16_t inputSource = 0;
   WidgetMouseEvent* sourceMouseEvent = aSourceEvent->AsMouseEvent();
   if (sourceMouseEvent) {
-    clickCount = sourceMouseEvent->clickCount;
+    clickCount = sourceMouseEvent->mClickCount;
     pressure = sourceMouseEvent->pressure;
     inputSource = sourceMouseEvent->inputSource;
   } else if (aSourceEvent->mClass == eKeyboardEventClass) {
     inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
   }
   event.pressure = pressure;
-  event.clickCount = clickCount;
+  event.mClickCount = clickCount;
   event.inputSource = inputSource;
   event.mModifiers = aSourceEvent->mModifiers;
   if (aExtraEventFlags) {
@@ -3094,7 +3094,7 @@ Element::PostHandleEventForLinks(EventChainPostVisitor& aVisitor)
   case eKeyPress:
     {
       WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
-      if (keyEvent && keyEvent->keyCode == NS_VK_RETURN) {
+      if (keyEvent && keyEvent->mKeyCode == NS_VK_RETURN) {
         nsEventStatus status = nsEventStatus_eIgnore;
         rv = DispatchClickEvent(aVisitor.mPresContext, keyEvent, this,
                                 false, nullptr, &status);

@@ -85,7 +85,12 @@ class MOZ_RAII AutoStopVerifyingBarriers
     AutoStopVerifyingBarriers(JSRuntime* rt, bool isShutdown)
       : gc(&rt->gc)
     {
-        restartPreVerifier = gc->endVerifyPreBarriers() && !isShutdown;
+        if (gc->isVerifyPreBarriersEnabled()) {
+            gc->endVerifyPreBarriers();
+            restartPreVerifier = !isShutdown;
+        } else {
+            restartPreVerifier = false;
+        }
     }
 
     ~AutoStopVerifyingBarriers() {
@@ -115,8 +120,8 @@ struct MOZ_RAII AutoStopVerifyingBarriers
 #endif /* JS_GC_ZEAL */
 
 #ifdef JSGC_HASH_TABLE_CHECKS
-void
-CheckHashTablesAfterMovingGC(JSRuntime* rt);
+void CheckHashTablesAfterMovingGC(JSRuntime* rt);
+void CheckHeapAfterMovingGC(JSRuntime* rt);
 #endif
 
 struct MovingTracer : JS::CallbackTracer
@@ -128,6 +133,7 @@ struct MovingTracer : JS::CallbackTracer
     void onStringEdge(JSString** stringp) override;
     void onScriptEdge(JSScript** scriptp) override;
     void onLazyScriptEdge(LazyScript** lazyp) override;
+    void onBaseShapeEdge(BaseShape** basep) override;
     void onChild(const JS::GCCellPtr& thing) override {
         MOZ_ASSERT(!RelocationOverlay::isCellForwarded(thing.asCell()));
     }

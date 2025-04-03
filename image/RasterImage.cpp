@@ -9,7 +9,6 @@
 
 #include "RasterImage.h"
 
-#include "base/histogram.h"
 #include "gfxPlatform.h"
 #include "nsComponentManagerUtils.h"
 #include "nsError.h"
@@ -106,7 +105,6 @@ RasterImage::RasterImage(ImageURL* aURI /* = nullptr */) :
   mAnimationFinished(false),
   mWantFullDecode(false)
 {
-  //Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(0);
 }
 
 //******************************************************************************
@@ -440,9 +438,7 @@ RasterImage::OnSurfaceDiscarded()
 {
   MOZ_ASSERT(mProgressTracker);
 
-  nsCOMPtr<nsIRunnable> runnable =
-    NS_NewRunnableMethod(mProgressTracker, &ProgressTracker::OnDiscard);
-  NS_DispatchToMainThread(runnable);
+  NS_DispatchToMainThread(NewRunnableMethod(mProgressTracker, &ProgressTracker::OnDiscard));
 }
 
 //******************************************************************************
@@ -770,7 +766,7 @@ RasterImage::CollectSizeOfSurfaces(nsTArray<SurfaceMemoryCounter>& aCounters,
   }
 }
 
-class OnAddedFrameRunnable : public nsRunnable
+class OnAddedFrameRunnable : public Runnable
 {
 public:
   OnAddedFrameRunnable(RasterImage* aImage,
@@ -1337,16 +1333,6 @@ RasterImage::Decode(const IntSize& aSize, uint32_t aFlags)
                                                      /* aFrameNum = */ 0));
   if (outcome != InsertOutcome::SUCCESS) {
     return NS_ERROR_FAILURE;
-  }
-
-  if (mDecodeCount > sMaxDecodeCount) {
-    // Don't subtract out 0 from the histogram, because that causes its count
-    // to go negative, which is not kosher.
-    if (sMaxDecodeCount > 0) {
-      /*Telemetry::GetHistogramById(Telemetry::IMAGE_MAX_DECODE_COUNT)
-        ->Subtract(sMaxDecodeCount);*/
-    }
-    sMaxDecodeCount = mDecodeCount;
   }
 
   // We're ready to decode; start the decoder.

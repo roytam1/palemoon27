@@ -27,13 +27,6 @@ using mozilla::plugins::LaunchCompleteTask;
 using mozilla::plugins::PluginProcessParent;
 using base::ProcessArchitecture;
 
-template<>
-struct RunnableMethodTraits<PluginProcessParent>
-{
-    static void RetainCallee(PluginProcessParent* obj) { }
-    static void ReleaseCallee(PluginProcessParent* obj) { }
-};
-
 PluginProcessParent::PluginProcessParent(const std::string& aPluginFilePath) :
     GeckoChildProcessHost(GeckoProcessType_Plugin),
     mPluginFilePath(aPluginFilePath),
@@ -194,8 +187,7 @@ PluginProcessParent::Delete()
       return;
   }
 
-  ioLoop->PostTask(FROM_HERE,
-                   NewRunnableMethod(this, &PluginProcessParent::Delete));
+  ioLoop->PostTask(NewNonOwningRunnableMethod(this, &PluginProcessParent::Delete));
 }
 
 void
@@ -239,7 +231,7 @@ PluginProcessParent::OnChannelConnected(int32_t peer_pid)
     GeckoChildProcessHost::OnChannelConnected(peer_pid);
     if (mLaunchCompleteTask && !mRunCompleteTaskImmediately) {
         mLaunchCompleteTask->SetLaunchSucceeded();
-        mMainMsgLoop->PostTask(FROM_HERE, mTaskFactory.NewRunnableMethod(
+        mMainMsgLoop->PostTask(mTaskFactory.NewRunnableMethod(
                                    &PluginProcessParent::RunLaunchCompleteTask));
     }
 }
@@ -249,7 +241,7 @@ PluginProcessParent::OnChannelError()
 {
     GeckoChildProcessHost::OnChannelError();
     if (mLaunchCompleteTask && !mRunCompleteTaskImmediately) {
-        mMainMsgLoop->PostTask(FROM_HERE, mTaskFactory.NewRunnableMethod(
+        mMainMsgLoop->PostTask(mTaskFactory.NewRunnableMethod(
                                    &PluginProcessParent::RunLaunchCompleteTask));
     }
 }

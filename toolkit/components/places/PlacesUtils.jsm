@@ -1233,11 +1233,18 @@ this.PlacesUtils = {
   },
 
   /**
-   * Gets the shared Sqlite.jsm readonly connection to the Places database.
-   * This is intended to be used mostly internally, and by other Places modules.
-   * Outside the Places component, it should be used only as a last resort.
+   * Gets a shared Sqlite.jsm readonly connection to the Places database,
+   * usable only for SELECT queries.
+   *
+   * This is intended to be used mostly internally, components outside of
+   * Places should, when possible, use API calls and file bugs to get proper
+   * APIs, where they are missing.
    * Keep in mind the Places DB schema is by no means frozen or even stable.
    * Your custom queries can - and will - break overtime.
+   *
+   * Example:
+   * let db = yield PlacesUtils.promiseDBConnection();
+   * let rows = yield db.executeCached(sql, params);
    */
   promiseDBConnection: () => gAsyncDBConnPromised,
 

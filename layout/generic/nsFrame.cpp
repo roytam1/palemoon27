@@ -1885,7 +1885,7 @@ nsFrame::DisplayBackgroundUnconditional(nsDisplayListBuilder* aBuilder,
   if (aBuilder->IsForEventDelivery() || aForceBackground ||
       !StyleBackground()->IsTransparent() || StyleDisplay()->mAppearance) {
     return nsDisplayBackgroundImage::AppendBackgroundItemsToTop(
-        aBuilder, this, aLists.BorderBackground());
+        aBuilder, this, GetRectRelativeToSelf(), aLists.BorderBackground());
   }
   return false;
 }
@@ -2521,9 +2521,11 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     buildingDisplayList.SetReferenceFrameAndCurrentOffset(outerReferenceFrame,
       GetOffsetToCrossDoc(outerReferenceFrame));
 
-    nsDisplayTransform *transformItem =
-      new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect);
-    resultList.AppendNewToTop(transformItem);
+    if (!aBuilder->IsForGenerateGlyphPath()) {
+      nsDisplayTransform *transformItem =
+        new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect);
+      resultList.AppendNewToTop(transformItem);
+    }
 
     if (HasPerspective()) {
       if (!useFixedPosition && !useStickyPosition) {
@@ -3255,7 +3257,7 @@ nsFrame::HandlePress(nsPresContext* aPresContext,
 #endif
 
   RefPtr<nsFrameSelection> fc = const_cast<nsFrameSelection*>(frameselection);
-  if (mouseEvent->clickCount > 1) {
+  if (mouseEvent->mClickCount > 1) {
     // These methods aren't const but can't actually delete anything,
     // so no need for nsWeakFrame.
     fc->SetDragState(true);
@@ -3454,16 +3456,16 @@ nsFrame::HandleMultiplePress(nsPresContext* aPresContext,
     return NS_OK;
   }
 
-  if (mouseEvent->clickCount == 4) {
+  if (mouseEvent->mClickCount == 4) {
     beginAmount = endAmount = eSelectParagraph;
-  } else if (mouseEvent->clickCount == 3) {
+  } else if (mouseEvent->mClickCount == 3) {
     if (Preferences::GetBool("browser.triple_click_selects_paragraph")) {
       beginAmount = endAmount = eSelectParagraph;
     } else {
       beginAmount = eSelectBeginLine;
       endAmount = eSelectEndLine;
     }
-  } else if (mouseEvent->clickCount == 2) {
+  } else if (mouseEvent->mClickCount == 2) {
     // We only want inline frames; PeekBackwardAndForward dislikes blocks
     beginAmount = endAmount = eSelectWord;
   } else {
@@ -3561,23 +3563,23 @@ NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext,
   MOZ_ASSERT(aEvent->mClass == eMouseEventClass,
              "HandleDrag can only handle mouse event");
 
-  bool selectable;
-  IsSelectable(&selectable, nullptr);
-
-  // XXX Do we really need to exclude non-selectable content here?
-  // GetContentOffsetsFromPoint can handle it just fine, although some
-  // other stuff might not like it.
-  if (!selectable)
-    return NS_OK;
-  if (DisplaySelection(aPresContext) == nsISelectionController::SELECTION_OFF) {
-    return NS_OK;
-  }
-  nsIPresShell *presShell = aPresContext->PresShell();
-
   RefPtr<nsFrameSelection> frameselection = GetFrameSelection();
   bool mouseDown = frameselection->GetDragState();
-  if (!mouseDown)
+  if (!mouseDown) {
     return NS_OK;
+  }
+
+  nsIFrame* scrollbar =
+    nsLayoutUtils::GetClosestFrameOfType(this, nsGkAtoms::scrollbarFrame);
+  if (!scrollbar) {
+    // XXX Do we really need to exclude non-selectable content here?
+    // GetContentOffsetsFromPoint can handle it just fine, although some
+    // other stuff might not like it.
+    // NOTE: DisplaySelection() returns SELECTION_OFF for non-selectable frames.
+    if (DisplaySelection(aPresContext) == nsISelectionController::SELECTION_OFF) {
+      return NS_OK;
+    }
+  }
 
   frameselection->StopAutoScrollTimer();
 
@@ -3586,6 +3588,7 @@ NS_IMETHODIMP nsFrame::HandleDrag(nsPresContext* aPresContext,
   int32_t contentOffset;
   int32_t target;
   WidgetMouseEvent* mouseEvent = aEvent->AsMouseEvent();
+  nsCOMPtr<nsIPresShell> presShell = aPresContext->PresShell();
   nsresult result;
   result = GetDataForTableSelection(frameselection, presShell, mouseEvent,
                                     getter_AddRefs(parentContent),

@@ -86,7 +86,7 @@
 
 #include "ImageLogging.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/Likely.h"
 #include "nsBMPDecoder.h"
 
@@ -177,6 +177,7 @@ nsBMPDecoder::nsBMPDecoder(RasterImage* aImage, State aState, size_t aLength)
   , mColors(nullptr)
   , mBytesPerColor(0)
   , mPreGapLength(0)
+  , mPixelRowSize(0)
   , mCurrentRow(0)
   , mCurrentPos(0)
   , mAbsoluteModeNumPixels(0)
@@ -682,10 +683,11 @@ nsBMPDecoder::ReadBitfields(const char* aData, size_t aLength)
 
   if (mDownscaler) {
     // BMPs store their rows in reverse order, so the downscaler needs to
-    // reverse them again when writing its output.
+    // reverse them again when writing its output. Unless the height is
+    // negative!
     rv = mDownscaler->BeginFrame(GetSize(), Nothing(),
                                  mImageData, mMayHaveTransparency,
-                                 /* aFlipVertically = */ true);
+                                 /* aFlipVertically = */ mH.mHeight >= 0);
     if (NS_FAILED(rv)) {
       return Transition::TerminateFailure();
     }

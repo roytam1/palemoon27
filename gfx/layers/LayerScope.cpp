@@ -10,7 +10,7 @@
 #include "nsAppRunner.h"
 #include "Composer2D.h"
 #include "Effects.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TimeStamp.h"
@@ -342,7 +342,7 @@ public:
     }
 private:
     friend class CreateServerSocketRunnable;
-    class CreateServerSocketRunnable : public nsRunnable
+    class CreateServerSocketRunnable : public Runnable
     {
     public:
         explicit CreateServerSocketRunnable(LayerScopeManager *aLayerScopeManager)

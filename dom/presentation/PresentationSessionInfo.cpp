@@ -117,9 +117,9 @@ PresentationNetworkHelper::OnGetWifiIPAddress(const nsACString& aIPAddress)
   MOZ_ASSERT(mFunc);
 
   NS_DispatchToMainThread(
-    NS_NewRunnableMethodWithArg<nsCString>(mInfo,
-                                           mFunc,
-                                           aIPAddress));
+    NewRunnableMethod<nsCString>(mInfo,
+                                 mFunc,
+                                 aIPAddress));
   return NS_OK;
 }
 
@@ -513,7 +513,7 @@ PresentationControllingInfo::GetAddress()
   // To make consistent code sequence, following function call is dispatched
   // into main thread instead of calling it directly.
   NS_DispatchToMainThread(
-    NS_NewRunnableMethodWithArg<nsCString>(
+    NewRunnableMethod<nsCString>(
       this,
       &PresentationControllingInfo::OnGetAddress,
       NS_ConvertUTF16toUTF8(ip)));
@@ -534,7 +534,7 @@ PresentationControllingInfo::GetAddress()
   // TODO Get host IP via other platforms.
 
   NS_DispatchToMainThread(
-    NS_NewRunnableMethodWithArg<nsCString>(
+    NewRunnableMethod<nsCString>(
       this,
       &PresentationControllingInfo::OnGetAddress,
       EmptyCString()));

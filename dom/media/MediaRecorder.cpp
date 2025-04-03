@@ -179,7 +179,7 @@ class MediaRecorder::Session: public nsIObserver,
 
   // Main thread task.
   // Create a blob event and send back to client.
-  class PushBlobRunnable : public nsRunnable
+  class PushBlobRunnable : public Runnable
   {
   public:
     explicit PushBlobRunnable(Session* aSession)
@@ -209,7 +209,7 @@ class MediaRecorder::Session: public nsIObserver,
   };
 
   // Notify encoder error, run in main thread task. (Bug 1095381)
-  class EncoderErrorNotifierRunnable : public nsRunnable
+  class EncoderErrorNotifierRunnable : public Runnable
   {
   public:
     explicit EncoderErrorNotifierRunnable(Session* aSession)
@@ -237,7 +237,7 @@ class MediaRecorder::Session: public nsIObserver,
   };
 
   // Fire start event and set mimeType, run in main thread task.
-  class DispatchStartEventRunnable : public nsRunnable
+  class DispatchStartEventRunnable : public Runnable
   {
   public:
     DispatchStartEventRunnable(Session* aSession, const nsAString & aEventName)
@@ -266,7 +266,7 @@ class MediaRecorder::Session: public nsIObserver,
 
   // Record thread task and it run in Media Encoder thread.
   // Fetch encoded Audio/Video data from MediaEncoder.
-  class ExtractRunnable : public nsRunnable
+  class ExtractRunnable : public Runnable
   {
   public:
     explicit ExtractRunnable(Session* aSession)
@@ -366,7 +366,7 @@ class MediaRecorder::Session: public nsIObserver,
   };
   // Main thread task.
   // To delete RecordingSession object.
-  class DestroyRunnable : public nsRunnable
+  class DestroyRunnable : public Runnable
   {
   public:
     explicit DestroyRunnable(Session* aSession)
@@ -832,10 +832,8 @@ private:
       new DispatchStartEventRunnable(this, NS_LITERAL_STRING("start")));
 
     if (NS_FAILED(rv)) {
-      nsCOMPtr<nsIRunnable> runnable =
-        NS_NewRunnableMethodWithArg<nsresult>(mRecorder,
-                                              &MediaRecorder::NotifyError, rv);
-      NS_DispatchToMainThread(runnable);
+      NS_DispatchToMainThread(NewRunnableMethod<nsresult>(mRecorder,
+                                                          &MediaRecorder::NotifyError, rv));
     }
     if (NS_FAILED(NS_DispatchToMainThread(new EncoderErrorNotifierRunnable(this)))) {
       MOZ_ASSERT(false, "NS_DispatchToMainThread EncoderErrorNotifierRunnable failed");

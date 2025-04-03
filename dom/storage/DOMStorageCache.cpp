@@ -110,8 +110,8 @@ DOMStorageCache::Release(void)
   }
 
   RefPtr<nsRunnableMethod<DOMStorageCacheBridge, void, false> > event =
-    NS_NewNonOwningRunnableMethod(static_cast<DOMStorageCacheBridge*>(this),
-                                  &DOMStorageCacheBridge::Release);
+    NewNonOwningRunnableMethod(static_cast<DOMStorageCacheBridge*>(this),
+                               &DOMStorageCacheBridge::Release);
 
   nsresult rv = NS_DispatchToMainThread(event);
   if (NS_FAILED(rv)) {
@@ -264,10 +264,7 @@ DOMStorageCache::KeepAlive()
 
   if (!NS_IsMainThread()) {
     // Timer and the holder must be initialized on the main thread.
-    RefPtr<nsRunnableMethod<DOMStorageCache> > event =
-      NS_NewRunnableMethod(this, &DOMStorageCache::KeepAlive);
-
-    NS_DispatchToMainThread(event);
+    NS_DispatchToMainThread(NewRunnableMethod(this, &DOMStorageCache::KeepAlive));
     return;
   }
 
@@ -547,9 +544,16 @@ DOMStorageCache::Clear(const DOMStorage* aStorage)
 void
 DOMStorageCache::CloneFrom(const DOMStorageCache* aThat)
 {
-  mLoaded = aThat->mLoaded;
+  // This will never be called on anything else than SessionStorage.
+  // This means mData will never be touched on any other thread than
+  // the main thread and it never went through the loading process.
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(!mPersistent);
+  MOZ_ASSERT(!(bool)aThat->mLoaded);
+
+  mLoaded = false;
   mInitialized = aThat->mInitialized;
-  mPersistent = aThat->mPersistent;
+  mPersistent = false;
   mSessionOnlyDataSetActive = aThat->mSessionOnlyDataSetActive;
 
   for (uint32_t i = 0; i < kDataSetCount; ++i) {
@@ -666,7 +670,7 @@ DOMStorageUsage::DOMStorageUsage(const nsACString& aScope)
 
 namespace {
 
-class LoadUsageRunnable : public nsRunnable
+class LoadUsageRunnable : public Runnable
 {
 public:
   LoadUsageRunnable(int64_t* aUsage, const int64_t aDelta)

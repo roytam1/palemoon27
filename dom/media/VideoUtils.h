@@ -7,7 +7,6 @@
 #ifndef VideoUtils_h
 #define VideoUtils_h
 
-#include "FlushableTaskQueue.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/MozPromise.h"
@@ -79,7 +78,7 @@ private:
 };
 
 // Shuts down a thread asynchronously.
-class ShutdownThreadEvent : public nsRunnable
+class ShutdownThreadEvent : public Runnable
 {
 public:
   explicit ShutdownThreadEvent(nsIThread* aThread) : mThread(aThread) {}
@@ -94,7 +93,7 @@ private:
 };
 
 template<class T>
-class DeleteObjectTask: public nsRunnable {
+class DeleteObjectTask: public Runnable {
 public:
   explicit DeleteObjectTask(nsAutoPtr<T>& aObject)
     : mObject(aObject)
@@ -131,6 +130,10 @@ CheckedInt64 FramesToUsecs(int64_t aFrames, uint32_t aRate);
 // Converts from number of audio frames (aFrames) TimeUnit, given
 // the specified audio rate (aRate).
 media::TimeUnit FramesToTimeUnit(int64_t aFrames, uint32_t aRate);
+// Perform aValue * aMul / aDiv, reducing the possibility of overflow due to
+// aValue * aMul overflowing.
+CheckedInt64 SaferMultDiv(int64_t aValue, uint32_t aMul, uint32_t aDiv);
+
 // Converts from microseconds (aUsecs) to number of audio frames, given the
 // specified audio rate (aRate). Stores the result in aOutFrames. Returns
 // true if the operation succeeded, or false if there was an integer
@@ -263,9 +266,6 @@ GenerateRandomPathName(nsCString& aOutSalt, uint32_t aLength);
 
 already_AddRefed<TaskQueue>
 CreateMediaDecodeTaskQueue();
-
-already_AddRefed<FlushableTaskQueue>
-CreateFlushableMediaDecodeTaskQueue();
 
 // Iteratively invokes aWork until aCondition returns true, or aWork returns false.
 // Use this rather than a while loop to avoid bogarting the task queue.

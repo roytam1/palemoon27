@@ -223,7 +223,7 @@ public:
 
 NS_IMPL_ISUPPORTS(GeolocationSettingsCallback, nsISettingsServiceCallback)
 
-class RequestPromptEvent : public nsRunnable
+class RequestPromptEvent : public Runnable
 {
 public:
   RequestPromptEvent(nsGeolocationRequest* aRequest, nsWeakPtr aWindow)
@@ -244,7 +244,7 @@ private:
   nsWeakPtr mWindow;
 };
 
-class RequestAllowEvent : public nsRunnable
+class RequestAllowEvent : public Runnable
 {
 public:
   RequestAllowEvent(int allow, nsGeolocationRequest* request)
@@ -267,7 +267,7 @@ private:
   RefPtr<nsGeolocationRequest> mRequest;
 };
 
-class RequestSendLocationEvent : public nsRunnable
+class RequestSendLocationEvent : public Runnable
 {
 public:
   RequestSendLocationEvent(nsIDOMGeoPosition* aPosition,
@@ -410,21 +410,17 @@ NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsGeolocationRequest)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsGeolocationRequest)
-
 NS_IMPL_CYCLE_COLLECTION(nsGeolocationRequest, mCallback, mErrorCallback, mLocator)
-
 void
 nsGeolocationRequest::Notify()
 {
-  StopTimeoutTimer();
+  SetTimeoutTimer();
   NotifyErrorAndShutdown(nsIDOMGeoPositionError::TIMEOUT);
 }
-
 void
 nsGeolocationRequest::NotifyErrorAndShutdown(uint16_t aErrorCode)
 {
   MOZ_ASSERT(!mShutdown, "timeout after shutdown");
-
   if (!mIsWatchPositionRequest) {
     Shutdown();
     mLocator->RemoveRequest(this);
@@ -497,8 +493,15 @@ nsGeolocationRequest::Allow(JS::HandleValue aChoices)
   MOZ_ASSERT(aChoices.isUndefined());
 
   if (mRequester) {
-    // Record the number of granted requests for regular web content.
-    Telemetry::Accumulate(Telemetry::GEOLOCATION_REQUEST_GRANTED, mProtocolType + 10);
+    // Record whether a location callback is fulfilled while the owner window
+    // is not visible.
+    bool isVisible = false;
+    nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(mLocator->GetParentObject());
+
+    if (window) {
+      nsCOMPtr<nsIDocument> doc = window->GetDoc();
+      isVisible = doc && !doc->Hidden();
+    }
   }
 
   if (mLocator->ClearPendingRequest(this)) {
@@ -721,16 +724,13 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
     callback->Call(*wrapped);
   } else {
     nsIDOMGeoPositionCallback* callback = mCallback.GetXPCOMCallback();
-
     MOZ_ASSERT(callback);
     callback->HandleEvent(aPosition);
   }
-
-  StopTimeoutTimer();
+  SetTimeoutTimer();
   MOZ_ASSERT(mShutdown || mIsWatchPositionRequest,
              "non-shutdown getCurrentPosition request after callback!");
 }
-
 nsIPrincipal*
 nsGeolocationRequest::GetPrincipal()
 {
@@ -748,22 +748,10 @@ nsGeolocationRequest::Update(nsIDOMGeoPosition* aPosition)
   NS_DispatchToMainThread(ev);
   return NS_OK;
 }
-
-NS_IMETHODIMP
-nsGeolocationRequest::LocationUpdatePending()
-{
-  if (!mTimeoutTimer) {
-    SetTimeoutTimer();
-  }
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsGeolocationRequest::NotifyError(uint16_t aErrorCode)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
   RefPtr<PositionError> positionError = new PositionError(mLocator, aErrorCode);
   positionError->NotifyCallback(mErrorCallback);
   return NS_OK;
@@ -797,8 +785,9 @@ NS_IMPL_ISUPPORTS(nsGeolocationRequest::TimerCallbackHolder, nsISupports, nsITim
 NS_IMETHODIMP
 nsGeolocationRequest::TimerCallbackHolder::Notify(nsITimer*)
 {
-  if (mRequest) {
-    mRequest->Notify();
+  if (mRequest && mRequest->mLocator) {
+    RefPtr<nsGeolocationRequest> request(mRequest);
+    request->Notify();
   }
   return NS_OK;
 }
@@ -1033,30 +1022,17 @@ nsGeolocationService::Update(nsIDOMGeoPosition *aSomewhere)
   if (aSomewhere) {
     SetCachedPosition(aSomewhere);
   }
-
   for (uint32_t i = 0; i< mGeolocators.Length(); i++) {
     mGeolocators[i]->Update(aSomewhere);
   }
   return NS_OK;
 }
-
-NS_IMETHODIMP
-nsGeolocationService::LocationUpdatePending()
-{
-  for (uint32_t i = 0; i< mGeolocators.Length(); i++) {
-    mGeolocators[i]->LocationUpdatePending();
-  }
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 nsGeolocationService::NotifyError(uint16_t aErrorCode)
 {
   for (uint32_t i = 0; i < mGeolocators.Length(); i++) {
     mGeolocators[i]->NotifyError(aErrorCode);
   }
-
   return NS_OK;
 }
 
@@ -1485,21 +1461,8 @@ Geolocation::Update(nsIDOMGeoPosition *aSomewhere)
   for (uint32_t i = 0; i < mWatchingCallbacks.Length(); i++) {
     mWatchingCallbacks[i]->Update(aSomewhere);
   }
-
   return NS_OK;
 }
-
-NS_IMETHODIMP
-Geolocation::LocationUpdatePending()
-{
-  // this event is only really interesting for watch callbacks
-  for (uint32_t i = 0; i < mWatchingCallbacks.Length(); i++) {
-    mWatchingCallbacks[i]->LocationUpdatePending();
-  }
-
-  return NS_OK;
-}
-
 NS_IMETHODIMP
 Geolocation::NotifyError(uint16_t aErrorCode)
 {
@@ -1507,7 +1470,6 @@ Geolocation::NotifyError(uint16_t aErrorCode)
     Shutdown();
     return NS_OK;
   }
-
   mozilla::Telemetry::Accumulate(mozilla::Telemetry::GEOLOCATION_ERROR, true);
 
   for (uint32_t i = mPendingCallbacks.Length(); i > 0; i--) {

@@ -264,13 +264,6 @@ DEFAULT_GMAKE_FLAGS += MAKE_OBJDIR='$$(INSTALL) -D $$(OBJDIR)'
 # it, creating race conditions. See bug #836220
 DEFAULT_GMAKE_FLAGS += TARGETS='$$(LIBRARY) $$(SHARED_LIBRARY) $$(PROGRAM)'
 
-ifndef WARNINGS_AS_ERRORS
-DEFAULT_GMAKE_FLAGS += NSS_ENABLE_WERROR=0
-endif
-ifeq ($(OS_TARGET),Android)
-DEFAULT_GMAKE_FLAGS += NSS_ENABLE_WERROR=0
-endif
-
 NSS_SRCDIR = $(topsrcdir)
 
 NSS_DIRS =
@@ -369,6 +362,10 @@ endif # WINNT
 endif # MOZ_FOLD_LIBS
 
 include $(topsrcdir)/config/rules.mk
+
+ifeq (1,$(ALLOW_COMPILER_WARNINGS))
+DEFAULT_GMAKE_FLAGS += NSS_ENABLE_WERROR=0
+endif
 
 # Can't pass this in DEFAULT_GMAKE_FLAGS because that overrides
 # definitions in NSS, so just export it into the sub-make's environment.

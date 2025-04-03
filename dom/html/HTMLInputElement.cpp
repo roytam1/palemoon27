@@ -3423,7 +3423,8 @@ HTMLInputElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
       }
     } else if (aVisitor.mEvent->mMessage == eKeyUp) {
       WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
-      if ((keyEvent->keyCode == NS_VK_UP || keyEvent->keyCode == NS_VK_DOWN) &&
+      if ((keyEvent->mKeyCode == NS_VK_UP ||
+           keyEvent->mKeyCode == NS_VK_DOWN) &&
           !(keyEvent->IsShift() || keyEvent->IsControl() ||
             keyEvent->IsAlt() || keyEvent->IsMeta() ||
             keyEvent->IsAltGraph() || keyEvent->IsFn() ||
@@ -3893,7 +3894,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
     if (mType ==  NS_FORM_INPUT_NUMBER &&
         keyEvent && keyEvent->mMessage == eKeyPress &&
         aVisitor.mEvent->IsTrusted() &&
-        (keyEvent->keyCode == NS_VK_UP || keyEvent->keyCode == NS_VK_DOWN) &&
+        (keyEvent->mKeyCode == NS_VK_UP || keyEvent->mKeyCode == NS_VK_DOWN) &&
         !(keyEvent->IsShift() || keyEvent->IsControl() ||
           keyEvent->IsAlt() || keyEvent->IsMeta() ||
           keyEvent->IsAltGraph() || keyEvent->IsFn() ||
@@ -3910,7 +3911,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
       // just ignore aVisitor.mEventStatus here and go ahead and handle the
       // event to increase/decrease the value of the number control.
       if (!aVisitor.mEvent->DefaultPreventedByContent() && IsMutable()) {
-        StepNumberControlForUserEvent(keyEvent->keyCode == NS_VK_UP ? 1 : -1);
+        StepNumberControlForUserEvent(keyEvent->mKeyCode == NS_VK_UP ? 1 : -1);
         aVisitor.mEventStatus = nsEventStatus_eConsumeNoDefault;
       }
     } else if (nsEventStatus_eIgnore == aVisitor.mEventStatus) {
@@ -3948,15 +3949,15 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
           // space or enter (bug 25300)
           WidgetKeyboardEvent* keyEvent = aVisitor.mEvent->AsKeyboardEvent();
           if ((aVisitor.mEvent->mMessage == eKeyPress &&
-               keyEvent->keyCode == NS_VK_RETURN) ||
+               keyEvent->mKeyCode == NS_VK_RETURN) ||
               (aVisitor.mEvent->mMessage == eKeyUp &&
-               keyEvent->keyCode == NS_VK_SPACE)) {
+               keyEvent->mKeyCode == NS_VK_SPACE)) {
             switch(mType) {
               case NS_FORM_INPUT_CHECKBOX:
               case NS_FORM_INPUT_RADIO:
               {
                 // Checkbox and Radio try to submit on Enter press
-                if (keyEvent->keyCode != NS_VK_SPACE) {
+                if (keyEvent->mKeyCode != NS_VK_SPACE) {
                   MaybeSubmitForm(aVisitor.mPresContext);
 
                   break;  // If we are submitting, do not send click event
@@ -3980,7 +3981,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
               mType == NS_FORM_INPUT_RADIO && !keyEvent->IsAlt() &&
               !keyEvent->IsControl() && !keyEvent->IsMeta()) {
             bool isMovingBack = false;
-            switch (keyEvent->keyCode) {
+            switch (keyEvent->mKeyCode) {
               case NS_VK_UP:
               case NS_VK_LEFT:
                 isMovingBack = true;
@@ -4023,7 +4024,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
            */
 
           if (aVisitor.mEvent->mMessage == eKeyPress &&
-              keyEvent->keyCode == NS_VK_RETURN &&
+              keyEvent->mKeyCode == NS_VK_RETURN &&
                (IsSingleLineTextControl(false, mType) ||
                 mType == NS_FORM_INPUT_NUMBER ||
                 IsExperimentalMobileType(mType))) {
@@ -4035,14 +4036,14 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
           if (aVisitor.mEvent->mMessage == eKeyPress &&
               mType == NS_FORM_INPUT_RANGE && !keyEvent->IsAlt() &&
               !keyEvent->IsControl() && !keyEvent->IsMeta() &&
-              (keyEvent->keyCode == NS_VK_LEFT ||
-               keyEvent->keyCode == NS_VK_RIGHT ||
-               keyEvent->keyCode == NS_VK_UP ||
-               keyEvent->keyCode == NS_VK_DOWN ||
-               keyEvent->keyCode == NS_VK_PAGE_UP ||
-               keyEvent->keyCode == NS_VK_PAGE_DOWN ||
-               keyEvent->keyCode == NS_VK_HOME ||
-               keyEvent->keyCode == NS_VK_END)) {
+              (keyEvent->mKeyCode == NS_VK_LEFT ||
+               keyEvent->mKeyCode == NS_VK_RIGHT ||
+               keyEvent->mKeyCode == NS_VK_UP ||
+               keyEvent->mKeyCode == NS_VK_DOWN ||
+               keyEvent->mKeyCode == NS_VK_PAGE_UP ||
+               keyEvent->mKeyCode == NS_VK_PAGE_DOWN ||
+               keyEvent->mKeyCode == NS_VK_HOME ||
+               keyEvent->mKeyCode == NS_VK_END)) {
             Decimal minimum = GetMinimum();
             Decimal maximum = GetMaximum();
             MOZ_ASSERT(minimum.isFinite() && maximum.isFinite());
@@ -4054,7 +4055,7 @@ HTMLInputElement::PostHandleEvent(EventChainPostVisitor& aVisitor)
               }
               MOZ_ASSERT(value.isFinite() && step.isFinite());
               Decimal newValue;
-              switch (keyEvent->keyCode) {
+              switch (keyEvent->mKeyCode) {
                 case  NS_VK_LEFT:
                   newValue = value + (GetComputedDirectionality() == eDir_RTL
                                         ? step : -step);
@@ -4301,7 +4302,7 @@ HTMLInputElement::PostHandleEventForRangeThumb(EventChainPostVisitor& aVisitor)
 
     case eKeyPress:
       if (mIsDraggingRange &&
-          aVisitor.mEvent->AsKeyboardEvent()->keyCode == NS_VK_ESCAPE) {
+          aVisitor.mEvent->AsKeyboardEvent()->mKeyCode == NS_VK_ESCAPE) {
         CancelRangeThumbDrag();
       }
       break;
@@ -4353,7 +4354,7 @@ HTMLInputElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
       ClearBrokenState();
       RemoveStatesSilently(NS_EVENT_STATE_BROKEN);
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &HTMLInputElement::MaybeLoadImage));
+        NewRunnableMethod(this, &HTMLInputElement::MaybeLoadImage));
     }
   }
 

@@ -35,6 +35,8 @@ class nsPIWindowRoot;
 class nsXBLPrototypeHandler;
 struct nsTimeout;
 
+typedef uint32_t SuspendTypes;
+
 namespace mozilla {
 namespace dom {
 class AudioContext;
@@ -98,6 +100,12 @@ public:
   virtual nsPIDOMWindow* GetScriptableTop() = 0;
   virtual nsPIDOMWindow* GetScriptableParent() = 0;
   virtual already_AddRefed<nsPIWindowRoot> GetTopWindowRoot() = 0;
+
+  /**
+   * Behavies identically to GetScriptableParent extept that it returns null
+   * if GetScriptableParent would return this window.
+   */
+  virtual nsPIDOMWindow* GetScriptableParentOrNull() = 0;
 
   // Inner windows only.
   virtual nsresult RegisterIdleObserver(nsIIdleObserver* aIdleObserver) = 0;
@@ -202,8 +210,8 @@ public:
   virtual bool IsRunningTimeout() = 0;
 
   // Audio API
-  bool GetMediaSuspended() const;
-  void SetMediaSuspended(bool aSuspended);
+  SuspendTypes GetMediaSuspend() const;
+  void SetMediaSuspend(SuspendTypes aSuspend);
 
   bool GetAudioMuted() const;
   void SetAudioMuted(bool aMuted);
@@ -227,7 +235,9 @@ protected:
   void MaybeCreateDoc();
 
   float GetAudioGlobalVolumeInternal(float aVolume);
-  void RefreshMediaElements();
+  void RefreshMediaElementsVolume();
+  void RefreshMediaElementsSuspend(SuspendTypes aSuspend);
+  bool IsDisposableSuspend(SuspendTypes aSuspend) const;
 
 public:
   // Internal getter/setter for the frame element, this version of the
@@ -844,7 +854,19 @@ protected:
   // "active".  Only used on outer windows.
   bool                   mIsBackground;
 
-  bool                   mMediaSuspended;
+  /**
+   * The suspended types can be "disposable" or "permanent". This varable only
+   * stores the value about permanent suspend.
+   * - disposable
+   * To pause all playing media in that window, but doesn't affect the media
+   * which starts after that.
+   *
+   * - permanent
+   * To pause all media in that window, and also affect the media which starts
+   * after that.
+   */
+  SuspendTypes       mMediaSuspend;
+
   bool                   mAudioMuted;
   float                  mAudioVolume;
 

@@ -74,7 +74,7 @@ class StoreBuffer
         explicit MonoTypeBuffer() : last_(T()) {}
         ~MonoTypeBuffer() { stores_.finish(); }
 
-        bool init() {
+        MOZ_MUST_USE bool init() {
             if (!stores_.initialized() && !stores_.init())
                 return false;
             clear();
@@ -141,7 +141,7 @@ class StoreBuffer
         explicit GenericBuffer() : storage_(nullptr) {}
         ~GenericBuffer() { js_delete(storage_); }
 
-        bool init() {
+        MOZ_MUST_USE bool init() {
             if (!storage_)
                 storage_ = js_new<LifoAlloc>(LifoAllocBlockSize);
             clear();
@@ -357,23 +357,6 @@ class StoreBuffer
         typedef PointerEdgeHasher<WholeCellEdges> Hasher;
     };
 
-    template <typename Key>
-    struct CallbackRef : public BufferableRef
-    {
-        typedef void (*TraceCallback)(JSTracer* trc, Key* key, void* data);
-
-        CallbackRef(TraceCallback cb, Key* k, void* d) : callback(cb), key(k), data(d) {}
-
-        virtual void trace(JSTracer* trc) {
-            callback(trc, key, data);
-        }
-
-      private:
-        TraceCallback callback;
-        Key* key;
-        void* data;
-    };
-
     template <typename Buffer, typename Edge>
     void unput(Buffer& buffer, const Edge& edge) {
         MOZ_ASSERT(!JS::shadow::Runtime::asShadowRuntime(runtime_)->isHeapBusy());
@@ -426,7 +409,7 @@ class StoreBuffer
     void disable();
     bool isEnabled() const { return enabled_; }
 
-    bool clear();
+    void clear();
 
     /* Get the overflowed status. */
     bool isAboutToOverflow() const { return aboutToOverflow_; }
@@ -445,20 +428,11 @@ class StoreBuffer
         else
             put(bufferSlot, edge);
     }
-    void putWholeCell(Cell* cell) {
-        MOZ_ASSERT(cell->isTenured());
-        put(bufferWholeCell, WholeCellEdges(cell));
-    }
+    inline void putWholeCell(Cell* cell);
 
     /* Insert an entry into the generic buffer. */
     template <typename T>
     void putGeneric(const T& t) { put(bufferGeneric, t);}
-
-    /* Insert or update a callback entry. */
-    template <typename Key>
-    void putCallback(void (*callback)(JSTracer* trc, Key* key, void* data), Key* key, void* data) {
-        put(bufferGeneric, CallbackRef<Key>(callback, key, data));
-    }
 
     void setShouldCancelIonCompilations() {
         cancelIonCompilations_ = true;
@@ -473,10 +447,6 @@ class StoreBuffer
 
     /* For use by our owned buffers and for testing. */
     void setAboutToOverflow();
-
-    bool hasPostBarrierCallbacks() {
-        return !bufferGeneric.isEmpty();
-    }
 
     void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::GCSizes* sizes);
 };

@@ -306,7 +306,7 @@ nsInProcessTabChildGlobal::InitTabChildGlobal()
   return NS_OK;
 }
 
-class nsAsyncScriptLoad : public nsRunnable
+class nsAsyncScriptLoad : public Runnable
 {
 public:
     nsAsyncScriptLoad(nsInProcessTabChildGlobal* aTabChild, const nsAString& aURL,

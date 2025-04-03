@@ -27,7 +27,7 @@
 namespace mozilla {
 namespace net {
 
-class NotifyCacheFileListenerEvent : public nsRunnable {
+class NotifyCacheFileListenerEvent : public Runnable {
 public:
   NotifyCacheFileListenerEvent(CacheFileListener *aCallback,
                                nsresult aResult,
@@ -64,7 +64,7 @@ protected:
   bool                        mIsNew;
 };
 
-class NotifyChunkListenerEvent : public nsRunnable {
+class NotifyChunkListenerEvent : public Runnable {
 public:
   NotifyChunkListenerEvent(CacheFileChunkListener *aCallback,
                            nsresult aResult,
@@ -1170,7 +1170,7 @@ CacheFile::GetChunkLocked(uint32_t aIndex, ECallerType aCaller,
     return NS_OK;
   }
 
-  int64_t off = aIndex * kChunkSize;
+  int64_t off = aIndex * static_cast<int64_t>(kChunkSize);
 
   if (off < mDataSize) {
     // We cannot be here if this is memory only entry since the chunk must exist
@@ -1312,7 +1312,7 @@ CacheFile::PreloadChunks(uint32_t aIndex)
   uint32_t limit = aIndex + mPreloadChunkCount;
 
   for (uint32_t i = aIndex; i < limit; ++i) {
-    int64_t off = i * kChunkSize;
+    int64_t off = i * static_cast<int64_t>(kChunkSize);
 
     if (off >= mDataSize) {
       // This chunk is beyond EOF.
@@ -1774,6 +1774,8 @@ CacheFile::DataSize(int64_t* aSize)
 bool
 CacheFile::IsDoomed()
 {
+  CacheFileAutoLock lock(this);
+
   if (!mHandle)
     return false;
 
@@ -1842,7 +1844,7 @@ CacheFile::WriteMetadataIfNeededLocked(bool aFireAndForget)
     return;
 
   if (!IsDirty() || mOutput || mInputs.Length() || mChunks.Count() ||
-      mWritingMetadata || mOpeningFile)
+      mWritingMetadata || mOpeningFile || mKill)
     return;
 
   if (!aFireAndForget) {

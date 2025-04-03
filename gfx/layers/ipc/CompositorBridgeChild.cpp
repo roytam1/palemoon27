@@ -6,11 +6,11 @@
 
 #include "mozilla/layers/CompositorBridgeChild.h"
 #include "mozilla/layers/CompositorBridgeParent.h"
+#include "mozilla/layers/CompositorThread.h"
 #include <stddef.h>                     // for size_t
 #include "ClientLayerManager.h"         // for ClientLayerManager
 #include "base/message_loop.h"          // for MessageLoop
 #include "base/task.h"                  // for NewRunnableMethod, etc
-#include "base/tracked.h"               // for FROM_HERE
 #include "mozilla/layers/LayerTransactionChild.h"
 #include "mozilla/layers/PLayerTransactionChild.h"
 #include "mozilla/mozalloc.h"           // for operator new, etc
@@ -46,8 +46,8 @@ CompositorBridgeChild::CompositorBridgeChild(ClientLayerManager *aLayerManager)
 
 CompositorBridgeChild::~CompositorBridgeChild()
 {
-  XRE_GetIOMessageLoop()->PostTask(FROM_HERE,
-                                   new DeleteTask<Transport>(GetTransport()));
+  RefPtr<DeleteTask<Transport>> task = new DeleteTask<Transport>(GetTransport());
+  XRE_GetIOMessageLoop()->PostTask(task.forget());
 
   if (mCanSend) {
     gfxCriticalError() << "CompositorBridgeChild was not deinitialized";
@@ -111,8 +111,18 @@ CompositorBridgeChild::Destroy()
   // handle compositor desctruction.
 
   // From now on we can't send any message message.
-  MessageLoop::current()->PostTask(FROM_HERE,
+  MessageLoop::current()->PostTask(
              NewRunnableFunction(DeferredDestroyCompositor, mCompositorBridgeParent, selfRef));
+
+  const ManagedContainer<PTextureChild>& textures = ManagedPTextureChild();
+  for (auto iter = textures.ConstIter(); !iter.Done(); iter.Next()) {
+    RefPtr<TextureClient> texture = TextureClient::AsTextureClient(iter.Get()->GetKey());
+
+    if (texture) {
+      texture->Destroy();
+    }
+  }
+
 }
 
 // static
@@ -171,7 +181,7 @@ CompositorBridgeChild::OpenSameProcess(CompositorBridgeParent* aParent)
 
   mCompositorBridgeParent = aParent;
   mCanSend = Open(mCompositorBridgeParent->GetIPCChannel(),
-                  CompositorBridgeParent::CompositorLoop(),
+                  CompositorThreadHolder::Loop(),
                   ipc::ChildSide);
   return mCanSend;
 }
@@ -320,14 +330,8 @@ CompositorBridgeChild::RecvUpdatePluginConfigurations(const LayoutDeviceIntPoint
       LayoutDeviceIntRect visibleBounds;
       // If the plugin is visible update it's geometry.
       if (isVisible) {
-        // bounds (content origin) - don't pass true to Resize, it triggers a
-        // sync paint update to the plugin process on Windows, which happens
-        // prior to clipping information being applied.
+        // Set bounds (content origin)
         bounds = aPlugins[pluginsIdx].bounds();
-        rv = widget->Resize(aContentOffset.x + bounds.x,
-                            aContentOffset.y + bounds.y,
-                            bounds.width, bounds.height, false);
-        NS_ASSERTION(NS_SUCCEEDED(rv), "widget call failure");
         nsTArray<LayoutDeviceIntRect> rectsOut;
         // This call may change the value of isVisible
         CalculatePluginClip(bounds, aPlugins[pluginsIdx].clip(),
@@ -336,6 +340,14 @@ CompositorBridgeChild::RecvUpdatePluginConfigurations(const LayoutDeviceIntPoint
                             rectsOut, visibleBounds, isVisible);
         // content clipping region (widget origin)
         rv = widget->SetWindowClipRegion(rectsOut, false);
+        NS_ASSERTION(NS_SUCCEEDED(rv), "widget call failure");
+        // This will trigger a browser window paint event for areas uncovered
+        // by a child window move, and will call invalidate on the plugin
+        // parent window which the browser owns. The latter gets picked up in
+        // our OnPaint handler and forwarded over to the plugin process async.
+        rv = widget->Resize(aContentOffset.x + bounds.x,
+                            aContentOffset.y + bounds.y,
+                            bounds.width, bounds.height, true);
         NS_ASSERTION(NS_SUCCEEDED(rv), "widget call failure");
       }
 
@@ -747,6 +759,21 @@ CompositorBridgeChild::SendUpdateVisibleRegion(VisibilityCounter aCounter,
     return true;
   }
   return PCompositorBridgeChild::SendUpdateVisibleRegion(aCounter, aGuid, aRegion);
+}
+
+PTextureChild*
+CompositorBridgeChild::AllocPTextureChild(const SurfaceDescriptor&,
+                                          const LayersBackend&,
+                                          const TextureFlags&,
+                                          const uint64_t&)
+{
+  return TextureClient::CreateIPDLActor();
+}
+
+bool
+CompositorBridgeChild::DeallocPTextureChild(PTextureChild* actor)
+{
+  return TextureClient::DestroyIPDLActor(actor);
 }
 
 } // namespace layers

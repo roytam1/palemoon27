@@ -326,6 +326,9 @@ private:
   };
   void MaybeUpdatePrimaryTabParent(TabParentChange aChange);
 
+  nsresult
+  PopulateUserContextIdFromAttribute(mozilla::OriginAttributes& aAttr);
+
   nsCOMPtr<nsIDocShell> mDocShell;
   nsCOMPtr<nsIURI> mURIToLoad;
   mozilla::dom::Element* mOwnerContent; // WEAK

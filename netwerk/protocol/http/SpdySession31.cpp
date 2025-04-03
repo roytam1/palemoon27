@@ -18,7 +18,7 @@
 #include "nsHttp.h"
 #include "nsHttpHandler.h"
 #include "nsHttpConnection.h"
-#include "nsISchedulingContext.h"
+#include "nsIRequestContext.h"
 #include "nsISupportsPriority.h"
 #include "prnetdb.h"
 #include "SpdyPush31.h"
@@ -1035,12 +1035,12 @@ SpdySession31::HandleSynStream(SpdySession31 *self)
     self->GenerateRstStream(RST_INVALID_STREAM, streamID);
 
   } else {
-    nsISchedulingContext *schedulingContext = associatedStream->SchedulingContext();
-    if (schedulingContext) {
-      schedulingContext->GetSpdyPushCache(&cache);
+    nsIRequestContext *requestContext = associatedStream->RequestContext();
+    if (requestContext) {
+      requestContext->GetSpdyPushCache(&cache);
       if (!cache) {
         cache = new SpdyPushCache();
-        if (!cache || NS_FAILED(schedulingContext->SetSpdyPushCache(cache))) {
+        if (!cache || NS_FAILED(requestContext->SetSpdyPushCache(cache))) {
           delete cache;
           cache = nullptr;
         }
@@ -2100,6 +2100,8 @@ SpdySession31::WriteSegmentsAgain(nsAHttpSegmentWriter *writer,
     MOZ_ASSERT(!mNeedsCleanup, "cleanup stream set unexpectedly");
     mNeedsCleanup = nullptr;                     /* just in case */
 
+    // The writesegments() stack can clear mInputFrameDataStream so
+    // only reference this local copy of it afterwards
     SpdyStream31 *stream = mInputFrameDataStream;
     mSegmentWriter = writer;
     rv = mInputFrameDataStream->WriteSegments(this, count, countWritten);
@@ -2108,7 +2110,7 @@ SpdySession31::WriteSegmentsAgain(nsAHttpSegmentWriter *writer,
       LOG3(("SpdySession31::WriteSegments session=%p stream=%p 0x%X "
             "stream channel pipe full\n",
             this, stream, stream ? stream->StreamID() : 0));
-      channelPipeFull = mInputFrameDataStream->ChannelPipeFull();
+      channelPipeFull = stream->ChannelPipeFull();
     }
     mSegmentWriter = nullptr;
 

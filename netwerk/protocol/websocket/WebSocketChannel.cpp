@@ -10,7 +10,7 @@
 
 #include "mozilla/Atomics.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/net/WebSocketEventService.h"
 
@@ -1248,7 +1248,7 @@ WebSocketChannel::Observe(nsISupports *subject,
         // Next we check mDataStarted, which we need to do on mTargetThread.
         if (!IsOnTargetThread()) {
           mTargetThread->Dispatch(
-            NS_NewRunnableMethod(this, &WebSocketChannel::OnNetworkChanged),
+            NewRunnableMethod(this, &WebSocketChannel::OnNetworkChanged),
             NS_DISPATCH_NORMAL);
         } else {
           OnNetworkChanged();
@@ -1272,7 +1272,7 @@ WebSocketChannel::OnNetworkChanged()
     }
 
     return mSocketThread->Dispatch(
-      NS_NewRunnableMethod(this, &WebSocketChannel::OnNetworkChanged),
+      NewRunnableMethod(this, &WebSocketChannel::OnNetworkChanged),
       NS_DISPATCH_NORMAL);
   }
 
@@ -1359,7 +1359,7 @@ WebSocketChannel::BeginOpen(bool aCalledFromAdmissionManager)
     // When called from nsWSAdmissionManager post an event to avoid potential
     // re-entering of nsWSAdmissionManager and its lock.
     NS_DispatchToMainThread(
-      NS_NewRunnableMethod(this, &WebSocketChannel::BeginOpenInternal),
+      NewRunnableMethod(this, &WebSocketChannel::BeginOpenInternal),
                            NS_DISPATCH_NORMAL);
   } else {
     BeginOpenInternal();
@@ -2241,7 +2241,7 @@ WebSocketChannel::EnsureHdrOut(uint32_t size)
 
 namespace {
 
-class RemoveObserverRunnable : public nsRunnable
+class RemoveObserverRunnable : public Runnable
 {
   RefPtr<WebSocketChannel> mChannel;
 
@@ -2836,7 +2836,7 @@ WebSocketChannel::StartWebsocketData()
 
   if (!IsOnTargetThread()) {
     return mTargetThread->Dispatch(
-      NS_NewRunnableMethod(this, &WebSocketChannel::StartWebsocketData),
+      NewRunnableMethod(this, &WebSocketChannel::StartWebsocketData),
       NS_DISPATCH_NORMAL);
   }
 
@@ -2859,15 +2859,15 @@ WebSocketChannel::StartWebsocketData()
     LOG(("WebSocketChannel::StartWebsocketData mSocketIn->AsyncWait() failed "
          "with error 0x%08x", rv));
     return mSocketThread->Dispatch(
-      NS_NewRunnableMethodWithArgs<nsresult>(this,
-                                             &WebSocketChannel::AbortSession,
-                                             rv),
+      NewRunnableMethod<nsresult>(this,
+                                  &WebSocketChannel::AbortSession,
+                                  rv),
       NS_DISPATCH_NORMAL);
   }
 
   if (mPingInterval) {
     rv = mSocketThread->Dispatch(
-      NS_NewRunnableMethod(this, &WebSocketChannel::StartPinging),
+      NewRunnableMethod(this, &WebSocketChannel::StartPinging),
       NS_DISPATCH_NORMAL);
     if (NS_FAILED(rv)) {
       LOG(("WebSocketChannel::StartWebsocketData Could not start pinging, "
@@ -3943,7 +3943,7 @@ WebSocketChannel::SaveNetworkStats(bool enforce)
 
   // Create the event to save the network statistics.
   // the event is then dispathed to the main thread.
-  RefPtr<nsRunnable> event =
+  RefPtr<Runnable> event =
     new SaveNetworkStatsEvent(mAppId, mIsInBrowser, mActiveNetworkInfo,
                               countRecv, countSent, false);
   NS_DispatchToMainThread(event);

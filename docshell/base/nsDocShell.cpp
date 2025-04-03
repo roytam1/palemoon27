@@ -4948,7 +4948,7 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
 
     uint32_t bucketId;
     if (NS_ERROR_PHISHING_URI == aError) {
-      error.AssignLiteral("phishingBlocked");
+      error.AssignLiteral("deceptiveBlocked");
       bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_PHISHING_PAGE_FRAME
                            : nsISecurityUITelemetry::WARNING_PHISHING_PAGE_TOP;
     } else {
@@ -9461,7 +9461,7 @@ nsDocShell::CopyFavicon(nsIURI* aOldURI,
 #endif
 }
 
-class InternalLoadEvent : public nsRunnable
+class InternalLoadEvent : public Runnable
 {
 public:
   InternalLoadEvent(nsDocShell* aDocShell, nsIURI* aURI,
@@ -13273,7 +13273,7 @@ nsDocShell::SetBaseUrlForWyciwyg(nsIContentViewer* aContentViewer)
   if (baseURI) {
     nsIDocument* document = aContentViewer->GetDocument();
     if (document) {
-      rv = document->SetBaseURI(baseURI);
+      document->SetBaseURI(baseURI);
     }
   }
   return rv;
@@ -13565,7 +13565,7 @@ nsDocShell::SelectNone(void)
 
 // link handling
 
-class OnLinkClickEvent : public nsRunnable
+class OnLinkClickEvent : public Runnable
 {
 public:
   OnLinkClickEvent(nsDocShell* aHandler, nsIContent* aContent,

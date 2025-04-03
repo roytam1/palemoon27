@@ -238,7 +238,7 @@ EvictEntries(nsIFile* aDirectory, const nsACString& aGroup,
 // FileDescriptorHolder owns a file descriptor and its memory mapping.
 // FileDescriptorHolder is derived by two runnable classes (that is,
 // (Parent|Child)Runnable.
-class FileDescriptorHolder : public nsRunnable
+class FileDescriptorHolder : public Runnable
 {
 public:
   FileDescriptorHolder()
@@ -330,7 +330,7 @@ protected:
 };
 
 class UnlockDirectoryRunnable final
-  : public nsRunnable
+  : public Runnable
 {
   RefPtr<DirectoryLock> mDirectoryLock;
 
@@ -1842,7 +1842,7 @@ ParamTraits<Metadata>::Write(Message* aMsg, const paramType& aParam)
 }
 
 bool
-ParamTraits<Metadata>::Read(const Message* aMsg, void** aIter,
+ParamTraits<Metadata>::Read(const Message* aMsg, PickleIterator* aIter,
                             paramType* aResult)
 {
   for (unsigned i = 0; i < Metadata::kNumEntries; i++) {
@@ -1881,7 +1881,7 @@ ParamTraits<WriteParams>::Write(Message* aMsg, const paramType& aParam)
 }
 
 bool
-ParamTraits<WriteParams>::Read(const Message* aMsg, void** aIter,
+ParamTraits<WriteParams>::Read(const Message* aMsg, PickleIterator* aIter,
                                paramType* aResult)
 {
   return ReadParam(aMsg, aIter, &aResult->mSize) &&

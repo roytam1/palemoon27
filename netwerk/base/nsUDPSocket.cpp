@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/Attributes.h"
-#include "mozilla/Endian.h"
+#include "mozilla/EndianUtils.h"
 #include "mozilla/dom/TypedArray.h"
 #include "mozilla/HoldDropJSObjects.h"
 
@@ -47,12 +47,10 @@ typedef void (nsUDPSocket:: *nsUDPSocketFunc)(void);
 static nsresult
 PostEvent(nsUDPSocket *s, nsUDPSocketFunc func)
 {
-  nsCOMPtr<nsIRunnable> ev = NS_NewRunnableMethod(s, func);
-
   if (!gSocketTransportService)
     return NS_ERROR_FAILURE;
 
-  return gSocketTransportService->Dispatch(ev, NS_DISPATCH_NORMAL);
+  return gSocketTransportService->Dispatch(NewRunnableMethod(s, func), NS_DISPATCH_NORMAL);
 }
 
 static nsresult
@@ -74,7 +72,7 @@ ResolveHost(const nsACString &host, nsIDNSListener *listener)
 
 //-----------------------------------------------------------------------------
 
-class SetSocketOptionRunnable : public nsRunnable
+class SetSocketOptionRunnable : public Runnable
 {
 public:
   SetSocketOptionRunnable(nsUDPSocket* aSocket, const PRSocketOptionData& aOpt)
@@ -346,7 +344,7 @@ nsUDPSocket::TryAttach()
   if (!gSocketTransportService->CanAttachSocket())
   {
     nsCOMPtr<nsIRunnable> event =
-      NS_NewRunnableMethod(this, &nsUDPSocket::OnMsgAttach);
+      NewRunnableMethod(this, &nsUDPSocket::OnMsgAttach);
 
     nsresult rv = gSocketTransportService->NotifyWhenCanAttachSocket(event);
     if (NS_FAILED(rv))
@@ -761,7 +759,7 @@ nsUDPSocket::SaveNetworkStats(bool aEnforce)
   if (aEnforce || total > NETWORK_STATS_THRESHOLD) {
     // Create the event to save the network statistics.
     // the event is then dispathed to the main thread.
-    RefPtr<nsRunnable> event =
+    RefPtr<Runnable> event =
       new SaveNetworkStatsEvent(mAppId, mIsInBrowserElement, mActiveNetworkInfo,
                                 mByteReadCount, mByteWriteCount, false);
     NS_DispatchToMainThread(event);
@@ -814,7 +812,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIUDPSOCKETLISTENER
 
-  class OnPacketReceivedRunnable : public nsRunnable
+  class OnPacketReceivedRunnable : public Runnable
   {
   public:
     OnPacketReceivedRunnable(const nsMainThreadPtrHandle<nsIUDPSocketListener>& aListener,
@@ -833,7 +831,7 @@ public:
     nsCOMPtr<nsIUDPMessage> mMessage;
   };
 
-  class OnStopListeningRunnable : public nsRunnable
+  class OnStopListeningRunnable : public Runnable
   {
   public:
     OnStopListeningRunnable(const nsMainThreadPtrHandle<nsIUDPSocketListener>& aListener,
@@ -919,7 +917,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIUDPSOCKETLISTENER
 
-  class OnPacketReceivedRunnable : public nsRunnable
+  class OnPacketReceivedRunnable : public Runnable
   {
   public:
     OnPacketReceivedRunnable(const nsCOMPtr<nsIUDPSocketListener>& aListener,
@@ -938,7 +936,7 @@ public:
     nsCOMPtr<nsIUDPMessage> mMessage;
   };
 
-  class OnStopListeningRunnable : public nsRunnable
+  class OnStopListeningRunnable : public Runnable
   {
   public:
     OnStopListeningRunnable(const nsCOMPtr<nsIUDPSocketListener>& aListener,
@@ -1098,7 +1096,7 @@ PendingSendStream::OnLookupComplete(nsICancelable *request,
   return NS_OK;
 }
 
-class SendRequestRunnable: public nsRunnable {
+class SendRequestRunnable: public Runnable {
 public:
   SendRequestRunnable(nsUDPSocket *aSocket,
                       const NetAddr &aAddr,
@@ -1458,6 +1456,33 @@ nsUDPSocket::SetRecvBufferSize(int size)
 
   opt.option = PR_SockOpt_RecvBufferSize;
   opt.value.recv_buffer_size = size;
+
+  nsresult rv = SetSocketOption(opt);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsUDPSocket::GetSendBufferSize(int* size)
+{
+  // Bug 1252759 - missing support for GetSocketOption
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+nsUDPSocket::SetSendBufferSize(int size)
+{
+  if (NS_WARN_IF(!mFD)) {
+    return NS_ERROR_NOT_INITIALIZED;
+  }
+
+  PRSocketOptionData opt;
+
+  opt.option = PR_SockOpt_SendBufferSize;
+  opt.value.send_buffer_size = size;
 
   nsresult rv = SetSocketOption(opt);
   if (NS_WARN_IF(NS_FAILED(rv))) {

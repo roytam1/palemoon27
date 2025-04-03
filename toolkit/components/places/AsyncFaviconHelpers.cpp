@@ -501,7 +501,7 @@ AsyncFetchAndSetIconForPage::Run()
 
 NS_IMPL_ISUPPORTS_INHERITED(
   AsyncFetchAndSetIconFromNetwork
-, nsRunnable
+, Runnable
 , nsIStreamListener
 , nsIInterfaceRequestor
 , nsIChannelEventSink

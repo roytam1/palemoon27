@@ -11,6 +11,7 @@
 #include "mozilla/gfx/2D.h"             // for DataSourceSurface, Factory
 #include "mozilla/ipc/Shmem.h"          // for Shmem
 #include "mozilla/layers/CompositableTransactionParent.h" // for CompositableParentManager
+#include "mozilla/layers/CompositorBridgeParent.h"
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/ISurfaceAllocator.h"  // for ISurfaceAllocator
 #include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor, etc
@@ -64,7 +65,7 @@ namespace layers {
 class TextureParent : public ParentActor<PTextureParent>
 {
 public:
-  explicit TextureParent(CompositableParentManager* aManager);
+  explicit TextureParent(ISurfaceAllocator* aAllocator);
 
   ~TextureParent();
 
@@ -82,26 +83,26 @@ public:
 
   virtual void Destroy() override;
 
-  CompositableParentManager* mCompositableManager;
+  ISurfaceAllocator* mSurfaceAllocator;
   RefPtr<TextureHost> mWaitForClientRecycle;
   RefPtr<TextureHost> mTextureHost;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 PTextureParent*
-TextureHost::CreateIPDLActor(CompositableParentManager* aManager,
+TextureHost::CreateIPDLActor(ISurfaceAllocator* aAllocator,
                              const SurfaceDescriptor& aSharedData,
                              LayersBackend aLayersBackend,
                              TextureFlags aFlags)
 {
   if (aSharedData.type() == SurfaceDescriptor::TSurfaceDescriptorBuffer &&
       aSharedData.get_SurfaceDescriptorBuffer().data().type() == MemoryOrShmem::Tuintptr_t &&
-      !aManager->IsSameProcess())
+      !aAllocator->IsSameProcess())
   {
     NS_ERROR("A client process is trying to peek at our address space using a MemoryTexture!");
     return nullptr;
   }
-  TextureParent* actor = new TextureParent(aManager);
+  TextureParent* actor = new TextureParent(aAllocator);
   if (!actor->Init(aSharedData, aLayersBackend, aFlags)) {
     delete actor;
     return nullptr;
@@ -558,7 +559,8 @@ BufferTextureHost::PrepareTextureSource(CompositableTextureSourceRef& aTexture)
                              || (mFormat == gfx::SurfaceFormat::YUV
                                  && mCompositor
                                  && mCompositor->SupportsEffect(EffectTypes::YCBCR)
-                                 && texture->GetNextSibling())
+                                 && texture->GetNextSibling()
+                                 && texture->GetNextSibling()->GetNextSibling())
                              || (mFormat == gfx::SurfaceFormat::YUV
                                  && mCompositor
                                  && !mCompositor->SupportsEffect(EffectTypes::YCBCR)
@@ -573,6 +575,15 @@ BufferTextureHost::PrepareTextureSource(CompositableTextureSourceRef& aTexture)
     mFirstSource = texture;
     mFirstSource->SetOwner(this);
     mNeedsFullUpdate = true;
+
+    // It's possible that texture belonged to a different compositor,
+    // so make sure we update it (and all of its siblings) to the
+    // current one.
+    RefPtr<TextureSource> it = mFirstSource;
+    while (it) {
+      it->SetCompositor(mCompositor);
+      it = it->GetNextSibling();
+    }
   }
 }
 
@@ -784,7 +795,8 @@ ShmemTextureHost::ShmemTextureHost(const ipc::Shmem& aShmem,
     // available, even though we did on the child process.
     // As a result this texture will be in an invalid state and Lock will
     // always fail.
-    gfxCriticalError() << "Failed to create a valid ShmemTextureHost";
+
+    gfxCriticalNote << "Failed to create a valid ShmemTextureHost";
   }
 
   MOZ_COUNT_CTOR(ShmemTextureHost);
@@ -880,8 +892,8 @@ size_t MemoryTextureHost::GetBufferSize()
   return std::numeric_limits<size_t>::max();
 }
 
-TextureParent::TextureParent(CompositableParentManager* aCompositableManager)
-: mCompositableManager(aCompositableManager)
+TextureParent::TextureParent(ISurfaceAllocator* aSurfaceAllocator)
+: mSurfaceAllocator(aSurfaceAllocator)
 {
   MOZ_COUNT_CTOR(TextureParent);
 }
@@ -931,7 +943,7 @@ TextureParent::Init(const SurfaceDescriptor& aSharedData,
                     const TextureFlags& aFlags)
 {
   mTextureHost = TextureHost::Create(aSharedData,
-                                     mCompositableManager,
+                                     mSurfaceAllocator,
                                      aBackend,
                                      aFlags);
   if (mTextureHost) {

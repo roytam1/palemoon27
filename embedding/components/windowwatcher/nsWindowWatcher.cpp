@@ -526,8 +526,10 @@ nsWindowWatcher::OpenWindowInternal(nsIDOMWindow* aParent,
     aParent = parent->GetOuterWindow();
   }
 
-  MOZ_ASSERT_IF(openedFromRemoteTab,
-                XRE_IsParentProcess());
+  // When the opener is a remote tab, the url passed from the child process
+  // isn't actually used. This code needs some serious refactoring.
+  MOZ_ASSERT_IF(openedFromRemoteTab, !aUrl);
+  MOZ_ASSERT_IF(openedFromRemoteTab, XRE_IsParentProcess());
   NS_ENSURE_ARG_POINTER(aResult);
   *aResult = 0;
 

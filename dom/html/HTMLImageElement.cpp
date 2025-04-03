@@ -77,7 +77,7 @@ namespace dom {
 // Calls LoadSelectedImage on host element unless it has been superseded or
 // canceled -- this is the synchronous section of "update the image data".
 // https://html.spec.whatwg.org/multipage/embedded-content.html#update-the-image-data
-class ImageLoadTask : public nsRunnable
+class ImageLoadTask : public Runnable
 {
 public:
   ImageLoadTask(HTMLImageElement *aElement, bool aAlwaysLoad)
@@ -614,7 +614,7 @@ HTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // loading.
     if (LoadingEnabled()) {
       nsContentUtils::AddScriptRunner(
-          NS_NewRunnableMethod(this, &HTMLImageElement::MaybeLoadImage));
+          NewRunnableMethod(this, &HTMLImageElement::MaybeLoadImage));
     }
   }
 
@@ -821,7 +821,7 @@ HTMLImageElement::CopyInnerTo(Element* aDest)
     if (!dest->InResponsiveMode() &&
         dest->HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(dest, &HTMLImageElement::MaybeLoadImage));
+        NewRunnableMethod(dest, &HTMLImageElement::MaybeLoadImage));
     }
   }
 

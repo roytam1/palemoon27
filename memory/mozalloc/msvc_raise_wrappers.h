@@ -8,11 +8,13 @@
 #ifndef mozilla_msvc_raise_wrappers_h
 #define mozilla_msvc_raise_wrappers_h
 
+#if defined (_MSC_VER) && _MSC_VER <= 1800
 #ifdef _XSTDDEF_
 #  error "Unable to wrap _RAISE(); CRT _RAISE() already defined"
 #endif
 #ifdef _XUTILITY_
 #  error "Unable to wrap _X[exception](); CRT versions already declared"
+#endif
 #endif
 #ifdef _FUNCTIONAL_
 #  error "Unable to wrap _Xbad_function_call(); CRT version already declared"
@@ -24,11 +26,13 @@
 // We #define them to be named differently so we can ensure the exception
 // throwing semantics of these functions work exactly the way we want, by
 // defining our own versions in msvc_raise_wrappers.cpp.
+#if defined (_MSC_VER) && _MSC_VER <= 1800
 #  define _Xinvalid_argument  moz_Xinvalid_argument
 #  define _Xlength_error      moz_Xlength_error
 #  define _Xout_of_range      moz_Xout_of_range
 #  define _Xoverflow_error    moz_Xoverflow_error
 #  define _Xruntime_error     moz_Xruntime_error
+#endif
 // used by <functional>
 #  define _Xbad_function_call moz_Xbad_function_call
 

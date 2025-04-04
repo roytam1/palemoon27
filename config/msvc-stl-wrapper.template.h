@@ -18,12 +18,15 @@
 #  include "mozilla/throw_msvc.h"
 #endif
 
+#if defined (_MSC_VER) && _MSC_VER <= 1800
 // Code might include <new> before other wrapped headers, but <new>
 // includes <exception> and so we want to wrap it.  But mozalloc.h
 // wants <new> also, so we break the cycle by always explicitly
 // including <new> here.
 #include <${NEW_HEADER_PATH}>
+#endif
 
+#if defined (_MSC_VER) && _MSC_VER <= 1800
 // See if we're in code that can use mozalloc.  NB: this duplicates
 // code in nscore.h because nscore.h pulls in prtypes.h, and chromium
 // can't build with that being included before base/basictypes.h.
@@ -31,6 +34,7 @@
 #  include "mozilla/mozalloc.h"
 #else
 #  error "STL code can only be used with infallible ::operator new()"
+#endif
 #endif
 
 #ifdef _DEBUG
